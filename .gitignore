@@ -21,3 +21,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+# Python provisioning scripts
+__pycache__/
+*.pyc
+# Regenerated with pnpm --filter api db:generate
+/apps/api/src/generated/prisma/
