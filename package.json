@@ -1,0 +1,16 @@
+{
+  "name": "todo-list",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=24.15.0",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter web --filter api dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

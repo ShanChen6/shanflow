@@ -1,0 +1,23 @@
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+# Local credentials and deployment metadata
+.aws/
+*.pem
+*.key
+.vercel/
+.pnpm-store/
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
