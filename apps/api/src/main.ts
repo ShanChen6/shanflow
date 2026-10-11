@@ -1,20 +1,19 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
-import { fileURLToPath } from 'node:url';
-import { config } from 'dotenv';
 import type { INestApplication } from '@nestjs/common';
-
-config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)), quiet: true });
+import { ConfigService } from '@nestjs/config';
+import type { AppConfiguration } from './config/app.config.js';
 
 async function bootstrap() {
   let app: INestApplication | undefined;
   try {
     app = await NestFactory.create(AppModule, { abortOnError: false });
     app.enableShutdownHooks();
-    await app.listen(3001);
+    const configuration = app.get(ConfigService<AppConfiguration, true>).get('app', { infer: true });
+    await app.listen(configuration.PORT);
   } catch {
     if (app) await app.close().catch(() => {});
-    console.error('API startup failed; check PostgreSQL, runtime DATABASE_URL and port 3001.');
+    console.error('API startup failed; check runtime configuration, PostgreSQL and the configured PORT.');
     process.exitCode = 1;
   }
 }

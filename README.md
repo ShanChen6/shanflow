@@ -47,6 +47,28 @@ pnpm install
 
 ## Development
 
+### First-time local setup
+
+Thực hiện theo thứ tự sau từ root repository:
+
+1. `pnpm install`.
+2. `cp -n .env.example .env`, rồi `chmod 600 .env` trên Linux/macOS. Giữ nguyên
+   file đã tồn tại. Điền ba mật khẩu bootstrap/app/migrator tương ứng, cùng runtime/migration/shadow URLs (password phải URL-encode).
+   `DATABASE_URL` dùng `shanflow_app` trên `shanflow`; hai CLI URLs dùng
+   `shanflow_migrator`, lần lượt trên `shanflow` và `shanflow_shadow`.
+   Mọi URL phải dùng đúng `POSTGRES_PORT`; chọn port trống nếu 5432 bị chiếm.
+3. `docker compose config --quiet`, rồi `docker compose up -d --wait postgres`.
+4. `python3 scripts/db/provision-roles.py` để tạo roles/shadow mà không reset.
+5. `pnpm --filter api db:validate` và `pnpm --filter api db:generate`.
+6. `pnpm lint`, `pnpm typecheck`, `pnpm build`, rồi API unit/e2e tests bên dưới.
+7. Chạy API và frontend ở hai terminal theo các lệnh bên dưới; kiểm tra
+   `/health/live` và `/health/ready` bằng curl.
+
+Generated Prisma Client không được commit: phải generate trước khi build,
+typecheck hoặc chạy tests trên clone mới. Validate/generate không cần kết nối
+database, nhưng Prisma config vẫn yêu cầu URL migration hợp lệ về cấu trúc.
+Unit/HTTP e2e tests dùng mocks và tự khai báo runtime test environment.
+
 Frontend tại http://localhost:3000:
 
 ```bash
@@ -464,15 +486,15 @@ import PrismaModule rồi inject PrismaService, không khai báo lại provider 
 không tạo client/pool theo request. Module không dùng `@Global()`.
 
 PrismaService kế thừa generated PrismaClient ESM, dùng `PrismaPg` với runtime
-`DATABASE_URL`. Service từ chối bootstrap/migration role, database/schema khác
+`DATABASE_URL`. Configuration layer từ chối bootstrap/migration role, database/schema khác
 hoặc URL thiếu/sai, không fallback sang `DIRECT_DATABASE_URL`.
-`main.ts` nạp root `.env` cho cả source và compiled entrypoint; biến environment
-được ưu tiên. `dotenv` là runtime dependency, không thêm config framework.
+`AppConfigModule` nạp và validate root `.env` một lần cho runtime source/compiled;
+biến environment được ưu tiên. PrismaService nhận runtime URL đã validate qua DI.
 
 Lifecycle:
 
 - `OnModuleInit`: `$connect()` rồi truy vấn chỉ đọc `SELECT 1` để xác nhận server
-  thực sự nhận kết nối trước khi HTTP server lắng nghe port 3001. Promise khởi
+  thực sự nhận kết nối trước khi HTTP server lắng nghe PORT đã validate (mặc định 3001). Promise khởi
   tạo được giữ lại để không gọi connect lặp khi lifecycle được gọi lại.
 - `OnModuleDestroy`: `$disconnect()` đúng một lần; adapter sở hữu pool và đóng
   pool khi disconnect. Service không tạo `pg.Pool` riêng hoặc gọi `pool.end()`.
@@ -502,3 +524,133 @@ HTTP e2e test override PrismaService nên cũng không yêu cầu Docker/databas
 Smoke verification riêng đã kiểm tra PostgreSQL thật, HTTP 200 trên port 3001,
 pool được giải phóng khi SIGTERM, và startup thất bại rõ ràng khi URL thiếu hoặc
 database không khả dụng. Không reset database hoặc thay đổi models/roles/Compose.
+
+## Runtime environment configuration
+
+NestJS dùng `@nestjs/config` và Zod, tập trung tại `src/config/`:
+
+- `env.schema.ts`: schema và validation với thông báo lỗi không chứa đầu vào.
+- `app.config.ts`: một factory namespace `app`, nạp root `.env` và validate trước
+  khi PrismaService được tạo. AppConfigModule được import tường minh.
+- PrismaService inject `ConfigType<typeof appConfig>`; các module khác có thể
+  inject `ConfigService<AppConfiguration, true>` và lấy namespace `app` bằng
+  `get('app', { infer: true })`. Không đọc `process.env` trong service nghiệp vụ.
+
+| Runtime variable | Default | Validation |
+| --- | --- | --- |
+| `NODE_ENV` | `development` | `development`, `test`, `production` |
+| `PORT` | `3001` | Integer 1–65535; biến environment dạng chuỗi được chuyển sang number |
+| `DATABASE_URL` | Không có | PostgreSQL URL, role `shanflow_app`, database `shanflow`, schema `public` |
+
+`DATABASE_URL` không được rỗng hoặc dùng bootstrap/migrator/shadow. Các query
+parameters ghi đè user/database/host/port/password bị từ chối để tránh bỏ qua
+kiểm tra URL. Password có ký tự đặc biệt phải được URL-encode như hướng dẫn trên.
+
+Runtime không yêu cầu `DIRECT_DATABASE_URL`, `SHADOW_DATABASE_URL`, PostgreSQL
+bootstrap password hoặc mật khẩu provisioning. Các biến đó chỉ dành cho
+Prisma CLI/Docker/provisioning; schema runtime loại bỏ chúng khỏi config đã
+validate. Không có JWT/OAuth hoặc biến cấu hình tính năng chưa triển khai.
+
+Loader dùng đường dẫn dựa trên `import.meta.url`, chạy đúng từ root, `apps/api`,
+`pnpm --filter api`, Nest watch mode và compiled build. Environment inject từ
+hệ thống được ưu tiên hơn `.env`; defaults chỉ áp dụng khi biến chưa tồn tại,
+không áp dụng cho giá trị rỗng hoặc sai. Không ghi lại hoặc overwrite `.env`.
+Prisma CLI giữ loader/config riêng vì chạy trong process riêng; main.ts không
+còn nạp dotenv lần thứ hai.
+
+Development dùng root `.env` đã cấu hình runtime URL. Đổi port qua environment:
+
+```bash
+PORT=4100 pnpm --filter api dev
+```
+
+Production: inject `NODE_ENV=production`, `PORT` nếu cần và `DATABASE_URL` qua
+secret/environment settings của deployment platform. Không mang theo `.env`
+development; API runtime không cần migration/bootstrap credentials. Migration
+command nhận `DIRECT_DATABASE_URL` riêng, không chạy trong HTTP startup.
+
+Lỗi thường gặp:
+
+- Thiếu/rỗng hoặc sai role/database của `DATABASE_URL`: startup bị từ chối trước
+  khi tạo adapter/pool; sửa runtime URL, không dùng migration/bootstrap URL.
+- `PORT` rỗng, số thập phân, ngoài phạm vi hoặc `NODE_ENV` không hợp lệ: sửa biến
+  hoặc bỏ biến để dùng default; validation chỉ in tên biến và yêu cầu hợp lệ.
+- URL hợp lệ nhưng PostgreSQL không khả dụng: startup vẫn thất bại qua Prisma
+  lifecycle; không báo HTTP ready giả và không in driver error/connection string.
+
+Unit tests kiểm tra schema/defaults/secret-safe errors, typed DI, validation
+trước adapter và giữ nguyên lifecycle. HTTP e2e dùng environment test hợp lệ và
+mock PrismaService; không phụ thuộc database thật.
+
+## API health checks
+
+HealthModule dùng PrismaModule/PrismaService singleton hiện có; không thêm client,
+pool hoặc dependency health framework. Không có global API prefix.
+
+| Endpoint | Mục đích | HTTP |
+| --- | --- | --- |
+| `GET /health/live` | HTTP server đang xử lý request; không query database | 200 |
+| `GET /health/ready` | Runtime PostgreSQL connection sẵn sàng | 200 hoặc 503 |
+
+```bash
+curl -i http://localhost:3001/health/live
+curl -i http://localhost:3001/health/ready
+```
+
+Thay port nếu runtime `PORT` được cấu hình khác. Liveness trả:
+
+```json
+{ "status": "ok" }
+```
+
+Readiness khi database up (HTTP 200):
+
+```json
+{ "status": "ok", "checks": { "database": "up" } }
+```
+
+Khi database lỗi, pool chờ lâu hoặc check hết hạn (HTTP 503):
+
+```json
+{ "status": "error", "checks": { "database": "down" } }
+```
+
+503 nghĩa là instance chưa sẵn sàng cho request phụ thuộc database, không nhất
+thiết là HTTP server đã dừng. Sau khi API boot thành công, database mất kết nối
+không làm liveness query database hoặc đổi response liveness. Lifecycle startup
+vẫn yêu cầu PostgreSQL sẵn sàng như trước; `GET /` vẫn trả `Hello World!`.
+Responses không chứa environment, credentials, SQL, host/port hoặc error stack.
+Health service không log raw errors hoặc retry liên tục.
+
+### Database check và timeout
+
+Readiness mượn connection từ pool hiện có, chạy transaction READ ONLY, đặt
+`SET LOCAL statement_timeout = '1500ms'`, rồi gọi tagged `$queryRaw` với `SELECT 1`.
+Không có business writes, shadow connection hoặc migration credentials.
+Local setting được PostgreSQL khôi phục khi transaction kết thúc; không thay
+đổi cấu hình pool/role/database toàn ứng dụng.
+
+Prisma transaction dùng `maxWait: 5000` và `timeout: 2500` milliseconds; response
+HTTP có deadline 4000 milliseconds. `statement_timeout` hủy truy vấn phía
+PostgreSQL khi server nhận được truy vấn. HTTP deadline không tự hủy SQL hoặc
+khắc phục network stall: service giữ operation đang chạy cho đến khi nó settle,
+các probe mới dùng chung kết quả thay vì tạo thêm query. Có tối đa một health
+operation đang chạy trong mỗi process, kể cả sau khi HTTP đã trả 503.
+Không có retry loop; check mới có thể chạy sau khi operation cũ hoàn tất.
+Xem [Prisma 7 transaction options](https://www.prisma.io/docs/orm/v7/prisma-client/queries/transactions)
+và [PostgreSQL statement timeout](https://www.postgresql.org/docs/18/runtime-config-client.html).
+
+### Tích hợp probe
+
+Dùng `/health/live` cho liveness probe của Docker/Kubernetes và `/health/ready`
+cho readiness/load balancer để ngừng chuyển traffic đến instance chưa ready.
+Đặt probe timeout lớn hơn deadline HTTP (ví dụ 5s) và chu kỳ hợp lý (ví dụ 10s),
+có khoảng startup phù hợp. Không dùng database readiness failure làm lý do
+restart HTTP server liên tục. Bước này chỉ tài liệu hóa; không sửa Compose hoặc
+thêm Kubernetes/monitoring configuration.
+
+Unit tests mock Prisma, kiểm tra coalescing, local timeout, HTTP deadline,
+late rejection/recovery và response an toàn. HTTP e2e mock database để kiểm tra
+200/503 mà không cần Docker. Smoke test riêng dùng PostgreSQL thật đã xác nhận
+health endpoints, server hủy truy vấn đọc chậm bằng local timeout, readiness
+phục hồi, timeout không leak sang lần dùng connection tiếp theo và schema không đổi.

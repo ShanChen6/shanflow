@@ -1,4 +1,6 @@
-import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
+import { appConfig } from '../config/app.config.js';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 
@@ -7,23 +9,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private connectionPromise?: Promise<void>;
   private disconnectPromise?: Promise<void>;
 
-  constructor() {
-    const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) {
-      throw new Error('DATABASE_URL is required for the runtime database connection.');
-    }
-    try {
-      const url = new URL(connectionString);
-      if (!['postgres:', 'postgresql:'].includes(url.protocol) ||
-          decodeURIComponent(url.username) !== 'shanflow_app' || url.pathname !== '/shanflow' ||
-          (url.searchParams.get('schema') ?? 'public') !== 'public') {
-        throw new Error('Unexpected runtime connection');
-      }
-    } catch {
-      throw new Error('DATABASE_URL must use shanflow_app, database shanflow and schema public.');
-    }
+  constructor(@Inject(appConfig.KEY) configuration: ConfigType<typeof appConfig>) {
     super({
-      adapter: new PrismaPg({ connectionString, connectionTimeoutMillis: 5000 }),
+      adapter: new PrismaPg({ connectionString: configuration.DATABASE_URL, connectionTimeoutMillis: 5000 }),
       log: [],
     });
   }

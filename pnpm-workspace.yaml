@@ -2,6 +2,10 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
+# Same-major security fix for Prisma CLI's pinned, unused MySQL driver.
+overrides:
+  'prisma@7.10.0>mysql2': '3.23.1'
+
 allowBuilds:
   '@prisma/engines': true
   prisma: true

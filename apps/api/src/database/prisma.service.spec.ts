@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { PrismaModule } from './prisma.module.js';
 import { PrismaService } from './prisma.service.js';
+import { validateEnvironment } from '../config/env.schema.js';
 
 const mocks = vi.hoisted(() => ({
   adapter: vi.fn(),
@@ -30,6 +31,8 @@ const runtimeUrl = 'postgresql://shanflow_app@127.0.0.1:55432/shanflow?schema=pu
 describe('Prisma integration', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('PORT', '3001');
     vi.stubEnv('DATABASE_URL', runtimeUrl);
     vi.stubEnv('DIRECT_DATABASE_URL', 'postgresql://shanflow_migrator@localhost/shanflow');
     mocks.connect.mockResolvedValue(undefined);
@@ -61,26 +64,22 @@ describe('Prisma integration', () => {
     expect(mocks.disconnect).toHaveBeenCalledTimes(1);
   });
 
-  it('requires runtime DATABASE_URL even when migration credentials exist', () => {
-    vi.stubEnv('DATABASE_URL', undefined);
-    expect(() => new PrismaService()).toThrow('DATABASE_URL is required');
-    expect(mocks.adapter).not.toHaveBeenCalled();
+  it('uses the injected runtime URL instead of process or migration credentials', () => {
+    vi.stubEnv('DATABASE_URL', 'invalid-process-value');
+    new PrismaService(validateEnvironment({ DATABASE_URL: runtimeUrl }));
+    expect(mocks.adapter).toHaveBeenCalledWith({ connectionString: runtimeUrl, connectionTimeoutMillis: 5000 });
   });
 
-  it.each(['shanflow', 'shanflow_migrator'])('rejects privileged URL role %s', (role) => {
-    vi.stubEnv('DATABASE_URL', `postgresql://${role}@localhost/shanflow`);
-    expect(() => new PrismaService()).toThrow('DATABASE_URL must use shanflow_app');
+  it('validates configuration before constructing the database adapter', async () => {
+    vi.stubEnv('DATABASE_URL', 'invalid-process-value');
+    await expect(Test.createTestingModule({ imports: [PrismaModule] }).compile())
+      .rejects.toThrow('Invalid runtime environment');
     expect(mocks.adapter).not.toHaveBeenCalled();
-  });
-
-  it('rejects malformed configuration without including its value', () => {
-    vi.stubEnv('DATABASE_URL', 'sensitive-invalid-url');
-    expect(() => new PrismaService()).toThrow(/^DATABASE_URL must use shanflow_app, database shanflow and schema public\.$/);
   });
 
   it.each(['connect', 'query'] as const)('cleans up after %s failure without exposing driver errors', async (step) => {
     mocks[step].mockRejectedValue(new Error('sensitive driver connection details'));
-    const service = new PrismaService();
+    const service = new PrismaService(validateEnvironment({ DATABASE_URL: runtimeUrl }));
     await expect(service.onModuleInit()).rejects.toThrow(/^Runtime database connection failed; check PostgreSQL and DATABASE_URL\.$/);
     await service.onModuleDestroy();
     expect(mocks.disconnect).toHaveBeenCalledTimes(1);
@@ -90,13 +89,13 @@ describe('Prisma integration', () => {
   it('reports a sanitized startup failure even if cleanup fails', async () => {
     mocks.query.mockRejectedValue(new Error('sensitive query details'));
     mocks.disconnect.mockRejectedValue(new Error('sensitive cleanup details'));
-    await expect(new PrismaService().onModuleInit()).rejects.toThrow(/^Runtime database connection failed and cleanup failed\.$/);
+    await expect(new PrismaService(validateEnvironment({ DATABASE_URL: runtimeUrl })).onModuleInit()).rejects.toThrow(/^Runtime database connection failed and cleanup failed\.$/);
     expect(mocks.disconnect).toHaveBeenCalledTimes(1);
   });
 
   it('disconnects at most once and sanitizes shutdown failure', async () => {
     mocks.disconnect.mockRejectedValue(new Error('sensitive cleanup details'));
-    const service = new PrismaService();
+    const service = new PrismaService(validateEnvironment({ DATABASE_URL: runtimeUrl }));
     await expect(service.onModuleDestroy()).rejects.toThrow(/^Runtime database disconnect failed\.$/);
     await expect(service.onModuleDestroy()).rejects.toThrow(/^Runtime database disconnect failed\.$/);
     expect(mocks.disconnect).toHaveBeenCalledTimes(1);
