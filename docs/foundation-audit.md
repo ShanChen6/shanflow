@@ -2,6 +2,12 @@
 
 Ngày audit: 2026-10-12. Phạm vi: Prompt 1.6, Foundation 1.1–1.5.
 
+**Trạng thái hiện tại sau Prompt 1.6B (2026-10-12):** Functional Foundation:
+**PASS**; Security Findings: **2 HIGH OPEN**; Domain Design Authorization:
+**CONDITIONALLY APPROVED**; Production Release Authorization: **NOT APPROVED**.
+Xem [RA-001](security/risk-acceptance-001.md) và mục J. Các kết luận gate trong
+mục A–I bên dưới giữ nguyên như lịch sử tại thời điểm audit, trước RA-001.
+
 ## A. Executive Summary
 
 **NOT READY FOR PHASE 2 theo security gate của prompt:** còn hai dependency
@@ -219,3 +225,207 @@ upstream fix/backport phù hợp hoặc security disposition rõ ràng. Không t
 major dependencies để làm audit output xanh. Sau khi xử lý gate, chạy lại các
 checks và cập nhật readiness, rồi mới chuyển Phase 2 Domain Analysis & Database
 Design. Chưa triển khai Phase 2 hoặc business features.
+
+## I. Prompt 1.6A — Dependency Security Remediation Addendum
+
+Ngày kiểm tra lại: 2026-10-12. Các mục A–H giữ nguyên như lịch sử Prompt 1.6;
+trạng thái mới nhất của SEC-01/SEC-02 được ghi dưới đây. Working tree sạch khi
+bắt đầu lượt này, khác với trạng thái chưa commit được ghi trong audit trước.
+
+### Executive summary và decision
+
+Hai findings vẫn **Open / High**. Đã truy cập registry và advisories chính thức,
+kiểm tra dependency graph, phiên bản cha, source của tooling, production traces
+và chạy lại regression checks. Chưa tìm được bản vá patch/minor hoặc cập nhật
+cha cùng major giải quyết findings. Không áp dụng dependency update vô ích,
+override chưa kiểm chứng, audit ignore hoặc sửa node_modules.
+
+SEC-01 có bản vá ở major 8 với breaking changes; theo giới hạn của Prompt 1.6A,
+chỉ trình bày phương án, chưa thực hiện nâng major. SEC-02 chưa có fixed release
+trên registry. Chưa có quyết định chấp nhận rủi ro được phê duyệt.
+
+### Verified dependency chains
+
+```text
+api devDependency prisma@7.10.0
+  → @prisma/config@7.10.0 → deepmerge-ts@7.1.5
+api dependency @prisma/client@7.10.0
+  → prisma@7.10.0 (resolved optional peer)
+    → @prisma/config@7.10.0 → deepmerge-ts@7.1.5
+
+web devDependency eslint-config-next@16.4.0
+  → @next/eslint-plugin-next@16.4.0 → fast-glob@3.3.1
+    → micromatch@4.0.8 → braces@3.0.3
+```
+
+`pnpm why ... -r` và pnpm-lock.yaml đồng nhất; mỗi affected package có một
+resolved version. Không package nào là direct dependency của workspace.
+
+### SEC-01 — deepmerge-ts / GHSA-ggr8-5vv4-36mx
+
+- **Advisory severity:** High; affected `<8.0.0`, patched `8.0.0` trở lên theo
+  [GitHub advisory](https://github.com/advisories/GHSA-ggr8-5vv4-36mx).
+- **Available fixes:** registry có 7.1.6 và 8.0.0/8.0.1/8.0.2. 7.1.6 vẫn thuộc
+  affected range; [release 7.1.6](https://github.com/RebeccaStevens/deepmerge-ts/releases/tag/v7.1.6)
+  chỉ sửa typing của object keys, không phải security backport. Stable Prisma 7
+  và @prisma/config 7 mới nhất được registry trả về là 7.10.0;
+  @prisma/config@7.10.0 pin chính xác deepmerge-ts 7.1.5.
+- **Classification:** Prisma CLI/config tooling trong development và generation;
+  cũng hiện diện trong production dependency graph qua optional peer của Client.
+  `pnpm audit --prod --json` vẫn trả về một High của deepmerge-ts. Không được
+  kết luận đây chỉ là devDependency hoặc production install chắc chắn loại bỏ nó.
+- **Reachability:** @prisma/config/dist/index.js tải deepmerge động và truyền nó
+  vào c12 làm config merger. prisma.config.ts hiện export object cấu hình đơn
+  giản, không tạo cyclic graph và không nhận HTTP request. PrismaService import
+  generated client/runtime và adapter-pg, không import Prisma CLI config.
+  Node module-resolution trace khi tạo Nest app, init Prisma và chạy readiness
+  thật ghi nhận 987 resolved modules, không nạp @prisma/config/deepmerge-ts/braces.
+  Đây là bằng chứng cho startup và health path hiện tại, không chứng minh mọi
+  đường chạy tương lai hoặc deployment artifact chưa được thiết kế.
+- **Exploit prerequisite:** attacker-controlled cyclic object graphs được đưa
+  vào merge API; JSON thuần không biểu diễn được điều kiện cyclic này. Chưa xác
+  định đường HTTP tới sink trong code hiện tại. Config/plugins không đáng tin
+  cậy hoặc integration mới có thể thay đổi kết luận.
+- **Compatibility:** [release 8](https://github.com/RebeccaStevens/deepmerge-ts/releases/tag/v8.0.0)
+  thay đổi cách merge Maps và một số API/types. 8.0.2 hỗ trợ Node >=16.9.0 và
+  ESM/CJS, nhưng engine/export phù hợp chưa chứng minh compatibility với c12
+  và Prisma. Chưa thử major override trong repository, chưa xác nhận an toàn.
+- **Disposition:** Open / High. Không nâng 7.1.6 vì không sửa finding; không ép
+  major 8 khi chưa được phê duyệt và kiểm chứng.
+
+### SEC-02 — braces / GHSA-vfj7-8cjw-p6xm
+
+- **Advisory severity:** High, affected `<=3.0.3`; [GitHub advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
+  ghi patched versions **None**. Audit registry ghi `>=3.0.4`, nhưng
+  `pnpm view braces@3.0.4 version` trả ERR_PNPM_PACKAGE_NOT_FOUND và danh sách
+  published versions kết thúc ở 3.0.3. Không dùng metadata này làm bằng chứng
+  rằng bản vá có thể cài được.
+- **Parent candidates:** latest stable eslint-config-next 16 và plugin 16 vẫn
+  16.4.0, plugin pin fast-glob 3.3.1. fast-glob 3.3.3 đã phát hành nhưng vẫn
+  phụ thuộc micromatch ^4.0.8; latest micromatch 4.0.8 vẫn dùng braces ^3.0.3.
+  Cập nhật riêng fast-glob không loại bỏ finding.
+- **Upstream:** [issue #70](https://github.com/micromatch/braces/issues/70) còn
+  Open; maintainer phản đối đánh giá exploitability. Chưa xác minh được fixed
+  release/backport chính thức phù hợp. Tranh luận không thay thế advisory hoặc
+  quyết định risk acceptance; giữ High và không suppress audit.
+- **Classification/reachability:** frontend lint tooling, absent trong prod
+  audit. Plugin get-root-dirs.js gọi fast-glob.globSync cho settings.next.rootDir;
+  eslint.config.mjs hiện không đặt rootDir glob, nên helper dùng context.cwd.
+  Không có HTTP input vào lint settings. Đây không phải exhaustive sink analysis
+  của mọi ESLint plugin. Không tìm thấy affected package references trong JS của
+  apps/api/dist hoặc apps/web/.next/server; ba Next server .nft.json manifests
+  cũng không chứa tooling trên. Manifest/source inspection không thay thế audit
+  deployment production đầy đủ, và không đánh giá vendored code ngoài lockfile.
+- **Exploit prerequisite:** brace patterns có độ lồng sâu được chuyển tới
+  recursive AST walkers, có thể gây stack exhaustion. Input-length limit đơn
+  thuần chưa được kiểm chứng là mitigation đủ cho advisory này.
+- **Disposition:** Open / High; không có published compatible fix đã xác minh.
+
+### Changes made và compensating controls
+
+Chỉ bổ sung mục I vào docs/foundation-audit.md. Không đổi package manifests,
+pnpm-workspace.yaml, lockfile hoặc source ứng dụng. Override mysql2 từ SEC-03
+được giữ nguyên, không mở rộng phạm vi. Không thực hiện migrations, provisioning,
+reset volume, thay roles/schema, commit hoặc push. Generated client/build outputs
+được tái tạo qua scripts hiện hữu và vẫn được Git ignore.
+
+Controls hiện có: config được quản lý trong repository; runtime dùng Client và
+pg adapter; HTTP handlers không chuyển input sang tooling; ESLint dùng config
+cố định. Khuyến nghị tiếp tục review mọi thay đổi Prisma config/rootDir globs,
+không chạy config/plugins không đáng tin cậy với credentials, và tách tooling
+khỏi runtime artifact khi thiết kế deployment. Đây là giảm exposure, không phải
+security patch, và deployment isolation chưa được triển khai ở bước này.
+
+### Regression verification
+
+| Check | Result |
+| --- | --- |
+| pnpm install --frozen-lockfile | PASS; lockfile unchanged; no peer/resolution warnings |
+| pnpm --filter api db:validate | PASS |
+| pnpm --filter api db:generate | PASS; client 7.10.0, no business models |
+| pnpm lint | PASS, 0 errors; existing import/no-anonymous-default-export warning in web/postcss.config.mjs |
+| pnpm typecheck | PASS, API and web |
+| pnpm build | PASS, Nest and Next Webpack/static pages |
+| pnpm --filter api test | PASS, 52/52 |
+| pnpm --filter api test:e2e | PASS, 4/4; mocked DB as designed |
+| Real Nest init + read-only readiness + close | PASS; readiness ok; affected tooling not resolved in traced path |
+| Next server traces | 3 manifests checked; no affected tooling references |
+| Final pnpm audit --json | 2 High, 0 Critical/Moderate/Low |
+| pnpm audit --prod --json | 1 High, deepmerge-ts through optional Prisma peer |
+| Git hygiene | Root/app env and generated client ignored; only documentation diff |
+
+Verification dùng Node 25.9.0/pnpm 11.18.0 như audit trước. Không có dependency
+update nên không có compatibility regression mới cần kiểm tra; install không
+báo peer conflict nhưng chưa thực hiện independent exhaustive peer validation.
+Unit/E2E success không chứng minh patched behavior vì chưa áp dụng bản vá.
+Runtime trace chỉ chạy init và health read-only, không có DDL hoặc role SQL.
+
+### Residual risk, readiness và concrete next-step proposal
+
+Hai advisories tiếp tục là blockers. Project-specific HTTP exposure hiện chưa
+được chứng minh; tooling crash/availability risk vẫn còn nếu input/config policy
+thay đổi. Không hạ advisory severity do dev classification, không định lượng
+residual risk là Low khi thiếu production artifact/sink analysis đầy đủ.
+
+**NOT READY FOR PHASE 2.** Chưa có approval cho High risk acceptance.
+
+Phương án cần review trước khi thực hiện:
+
+1. SEC-01: ưu tiên upstream Prisma 7 update/backport có patched deepmerge được
+   hỗ trợ. Nếu cần giải quyết trước upstream, xin phê duyệt đánh giá major
+   transitive override giới hạn `@prisma/config@7.10.0>deepmerge-ts: 8.0.2`.
+   Chỉ áp dụng sau khi so sánh config merger semantics (objects/arrays/Maps),
+   cyclic-input regression và validate/generate trên config fixture riêng;
+   không chạy migrate dev/reset trên DB hiện hữu. Chạy toàn bộ checks và audit,
+   rollback workspace override/lockfile nếu compatibility không đạt. Chưa áp
+   dụng override này hoặc khẳng định tương thích.
+2. SEC-02: theo dõi fixed braces release hoặc parent release loại bỏ dependency;
+   kiểm tra publish thực tế trước khi pin. Custom patch/thay lint stack cần
+   đánh giá riêng và không được tự thực hiện trong lượt này.
+3. Nếu cần tiếp tục trước khi có fix, security owner phải phê duyệt risk
+   acceptance theo từng ID, phạm vi, controls, thời hạn và điều kiện review lại.
+   Addendum này không phải approval. Sau remediation/disposition, chạy audit và
+   regression lại rồi cập nhật gate. Không triển khai Phase 2 trong Prompt 1.6A.
+
+## J. Prompt 1.6B — Conditional Security Risk Acceptance
+
+Ngày ghi nhận: **2026-10-12**. Project Owner cung cấp quyết định
+**Conditional Risk Acceptance — Development and Domain Design Only** trong
+cuộc trao đổi qua Prompt 1.6B. Đây không phải approval của tổ chức bảo mật độc
+lập; không thêm tên người phê duyệt hoặc chữ ký suy diễn.
+
+Record: [RA-001 — Conditionally Accepted for Domain Design](security/risk-acceptance-001.md).
+Implementation owner: Development Team. Initial review deadline:
+**2026-11-11** (30 ngày); review ngay nếu có trigger, không tự đóng findings
+hoặc mở production gate khi tới hạn.
+
+| Gate | Current status |
+| --- | --- |
+| Functional Foundation | PASS |
+| Security Findings | 2 HIGH OPEN |
+| Domain Design Authorization | CONDITIONALLY APPROVED |
+| Production Release Authorization | NOT APPROVED |
+
+**Phase 2.1 — Domain Analysis & ERD được phép bắt đầu có điều kiện.** Quyền này
+giới hạn domain/requirement analysis, ERD, schema proposals, documentation và
+non-destructive local verification. Implementation cần review phạm vi/rủi ro
+riêng. Không cấp quyền production deployment, public release, tự áp dụng
+migrations, đổi permissions/infrastructure hoặc bỏ qua security checks.
+
+SEC-01 (deepmerge-ts@7.1.5, GHSA-ggr8-5vv4-36mx) và SEC-02 (braces@3.0.3,
+GHSA-vfj7-8cjw-p6xm) vẫn **Open / High**. Risk acceptance không khắc phục
+dependency, không hạ severity và không thay thế remediation. Exposure đã biết,
+giới hạn verification, residual risks và controls được ghi riêng cho mỗi finding
+trong RA-001. Production security gate vẫn chưa đạt; Foundation không được coi
+là hoàn toàn security-ready.
+
+Verification lượt 1.6B: fresh `pnpm audit --json` xác nhận đúng hai High IDs,
+0 Critical/Moderate/Low; metadata/deadline (30 ngày), scopes, cross-references và
+`git diff --check` pass. Functional PASS kế thừa verification 1.6/1.6A; không
+chạy lại build/tests hoặc DB checks cho thay đổi chỉ gồm tài liệu.
+
+Chỉ tạo docs/security/risk-acceptance-001.md và cập nhật tài liệu audit này;
+giữ nguyên lịch sử, code, dependencies, lockfile, schema, Compose và database.
+Không commit/push hoặc bắt đầu Phase 2 trong lượt này. Bước tiếp theo được phép
+là Phase 2.1 theo điều kiện RA-001 khi có yêu cầu triển khai riêng; Development
+Team tiếp tục theo dõi fixes và review controls/triggers tới deadline.
