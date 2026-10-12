@@ -9,7 +9,7 @@ Ngày: 2026-10-12. Phạm vi: chỉ local development theo [IA-001](../security/
 | Giai đoạn | Nội dung | Trạng thái |
 | --- | --- | --- |
 | 7.1 | Nền tảng backend: contracts, chính sách quyền, đồ thị trạng thái, bộ cấp `position`, `TaskStore` | Xong |
-| 7.2 | CRUD API: tạo, liệt kê/lọc, đọc, sửa metadata | Chưa |
+| 7.2 | CRUD API: tạo, liệt kê/lọc, đọc, sửa metadata | Xong |
 | 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Chưa |
 | 7.4 | Sắp xếp và di chuyển: reorder, chuyển project/Inbox, rebalance | Chưa |
 | 7.5 | Giao diện quản lý Task | Chưa |
@@ -58,7 +58,37 @@ Ngày: 2026-10-12. Phạm vi: chỉ local development theo [IA-001](../security/
 (ACTIVE vs INACTIVE/bị khóa/người lạ), rank theo làn chỉ tính task sống, rank do bộ cấp tạo ra thỏa ràng buộc DB, ánh xạ vị trí 2^63−1 thành chuỗi,
 khóa workspace thật sự tuần tự hóa hai giao dịch.
 
+
+## 7.2 — CRUD API (làm theo TDD)
+
+Quy trình: mỗi lát là một vòng đỏ → xanh qua đúng seam công khai (schema ở contracts, route HTTP với DB thật; không mock thành phần nội bộ).
+Thứ tự lát: schema CRUD → tạo (mặc định) → tạo (đủ trường, rank theo làn, tạo song song) → quyền/project/người được giao/giới hạn → đọc → danh sách/lọc/phân trang → sửa với `version`.
+
+| Route | Quyền | Ghi chú |
+| --- | --- | --- |
+| `POST /workspaces/:w/tasks` | mọi thành viên ACTIVE | 201. Luôn `TODO`, người tạo = người gọi, `position` do server cấp (cuối làn) |
+| `GET /workspaces/:w/tasks` | thành viên | chỉ task sống; lọc `projectId` (uuid hoặc `inbox`), `status`, `priority`, `assigneeId` (uuid hoặc `unassigned`), `q`, `limit` (mặc định 50, tối đa 100), `cursor` |
+| `GET /workspaces/:w/tasks/:id` | thành viên | task đã xóa / workspace khác / id sai → 404 |
+| `PATCH /workspaces/:w/tasks/:id` | thành viên | `version` bắt buộc + ≥1 trong `title`, `description`, `priority`, `dueAt` (`null` xóa hạn; mô tả rỗng → null) |
+
+- **Chỉ nhận trường của hợp đồng:** `.strict()` từ chối `status`, `position`, `version` (khi tạo), `createdById`, `workspaceId`, `deletedAt`, và ở PATCH cả `assigneeId`, `projectId`
+  (các thao tác đó có quy tắc riêng, làm ở 7.3/7.4). Không có tham số nào để xem task đã xóa (thùng rác là đường riêng ở 7.3).
+- **Giao việc khi tạo:** theo `canChangeAssignee`: OWNER/ADMIN giao thành viên ACTIVE bất kỳ; MEMBER chỉ tự giao (403 nếu giao người khác);
+  người được giao không phải thành viên ACTIVE → 422 `INVALID_ASSIGNEE`.
+- **Project:** Inbox (`null`/bỏ qua) luôn hợp lệ; project phải thuộc workspace (404 nếu khác/lạ) và chưa lưu trữ (409 `PROJECT_ARCHIVED`).
+  Task thuộc project đã lưu trữ đọc được nhưng không sửa được.
+- **Giới hạn:** tối đa 5000 task/workspace (kể cả đã xóa) → 409 `TASK_LIMIT_REACHED`, đếm dưới khóa workspace nên tạo song song không vượt.
+- **Đồng thời:** mọi ghi chạy trong một giao dịch: quyền (khóa chia sẻ membership) → `lockWorkspace` → đọc lại → ghi. 8 lần tạo song song cho 8 rank khác nhau
+  (1024…8192); 6 lần sửa song song cùng `version` chỉ 1 lần thắng, 5 lần 409 `TASK_VERSION_CONFLICT`.
+- **Danh sách:** sắp xếp `position, id`; phân trang keyset bằng cursor mờ (`base64url("<position>.<id>")`, kiểm tra chặt, sai → 400), ổn định khi có task thêm/xóa
+  giữa các trang. `q` tìm theo tiêu đề không phân biệt hoa thường và **`%`, `_` được xem là ký tự thường** (Prisma không tự thoát chúng, đã tự thoát).
+  `position` trả dạng chuỗi (kể cả 2^63−1).
+- `completedAt` không bị đụng tới khi sửa task đã DONE. Throttle ghi 60/phút/người dùng. `Cache-Control: private, no-store`.
+
+**Kiểm thử:** contracts `task-crud.spec` (12 test); API unit `cursor.spec` (9); database `task-api.db-spec` (29 test: tạo, đọc, danh sách, sửa — gồm quyền theo vai trò, thu hồi quyền có hiệu lực ngay,
+cô lập tenant, xóa mềm/lưu trữ, tạo/sửa song song, giới hạn).
+
 ## Câu hỏi mở
 
-- Giới hạn số task mỗi workspace/làn và phân trang danh sách (quyết ở 7.2).
-- Chính sách phản hồi khi xóa/khôi phục lặp lại (ADR-003 để cho thiết kế API; đề xuất idempotent, quyết ở 7.3).
+- Xóa/khôi phục lặp lại (7.3): đề xuất idempotent, quyết khi làm 7.3.
+- Sắp xếp danh sách đa làn: hiện theo `position, id`; thứ tự hiển thị theo làn do UI (7.5) lọc theo project + status.

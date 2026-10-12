@@ -8,6 +8,7 @@ export const AUTH_ERROR_CODES = {
   notFound: 'NOT_FOUND',
   projectArchived: 'PROJECT_ARCHIVED',
   projectLimitReached: 'PROJECT_LIMIT_REACHED',
+  taskLimitReached: 'TASK_LIMIT_REACHED',
   taskVersionConflict: 'TASK_VERSION_CONFLICT',
   invalidStatusTransition: 'INVALID_STATUS_TRANSITION',
   invalidAssignee: 'INVALID_ASSIGNEE',

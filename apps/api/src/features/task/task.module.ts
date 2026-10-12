@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../database/prisma.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { WorkspaceCoreModule } from '../workspace/workspace-core.module.js';
+import { TaskController } from './task.controller.js';
+import { TaskHandlers } from './task.handlers.js';
 import { TaskStore } from './shared/task-store.service.js';
 
 /**
@@ -10,7 +12,8 @@ import { TaskStore } from './shared/task-store.service.js';
  */
 @Module({
   imports: [PrismaModule, AuthModule, WorkspaceCoreModule],
-  providers: [TaskStore],
+  controllers: [TaskController],
+  providers: [TaskStore, TaskHandlers],
   exports: [TaskStore],
 })
 export class TaskModule {}

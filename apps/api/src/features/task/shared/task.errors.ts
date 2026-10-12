@@ -7,6 +7,16 @@ export class TaskNotFoundError extends DomainError {
   }
 }
 
+export class TaskLimitReachedError extends DomainError {
+  constructor() {
+    super(
+      'TASK_LIMIT_REACHED',
+      409,
+      'This workspace has reached its task limit.',
+    );
+  }
+}
+
 export class TaskVersionConflictError extends DomainError {
   constructor() {
     super(
