@@ -4,6 +4,8 @@ export const AUTH_ERROR_CODES = {
   emailAlreadyRegistered: 'EMAIL_ALREADY_REGISTERED',
   invalidCredentials: 'INVALID_CREDENTIALS',
   unauthenticated: 'UNAUTHENTICATED',
+  forbidden: 'FORBIDDEN',
+  notFound: 'NOT_FOUND',
   csrfRejected: 'CSRF_REJECTED',
   invalidToken: 'INVALID_TOKEN',
   passwordUnchanged: 'PASSWORD_UNCHANGED',

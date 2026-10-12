@@ -15,3 +15,4 @@ export * from './user/display-name.js';
 export * from './user/update-profile.js';
 export * from './user/avatar.js';
 export * from './user/settings.js';
+export * from './workspace/workspace.js';

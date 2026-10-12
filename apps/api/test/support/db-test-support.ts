@@ -147,6 +147,19 @@ export async function deleteUsers(
   await prisma.passwordCredential.deleteMany({
     where: { userId: { in: userIds } },
   });
+  // Workspaces the users own (and every membership in them), then their memberships elsewhere.
+  const owned = (
+    await prisma.workspace.findMany({
+      where: { ownerId: { in: userIds } },
+      select: { id: true },
+    })
+  ).map((workspace) => workspace.id);
+  await prisma.workspaceMember.deleteMany({
+    where: {
+      OR: [{ workspaceId: { in: owned } }, { userId: { in: userIds } }],
+    },
+  });
+  await prisma.workspace.deleteMany({ where: { id: { in: owned } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
 }
 

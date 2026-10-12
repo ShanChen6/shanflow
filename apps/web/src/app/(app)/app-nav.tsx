@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 const LINKS = [
   { href: '/profile', label: 'Profile' },
   { href: '/account', label: 'Security' },
+  { href: '/workspace', label: 'Workspace' },
   { href: '/settings', label: 'Settings' },
 ];
 
