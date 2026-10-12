@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import type { MoveTaskRequest, MoveTaskResponse } from '@shanflow/contracts';
+import {
+  canTransition,
+  completedAtAfter,
+  type MoveTaskRequest,
+  type MoveTaskResponse,
+} from '@shanflow/contracts';
+import { Clock } from '../../../shared/clock.js';
 import type { Principal } from '../../auth/shared/principal.js';
 import {
   insertionIndex,
@@ -9,6 +15,7 @@ import {
 import { positionBetween } from '../shared/position.js';
 import {
   InvalidPlacementError,
+  InvalidStatusTransitionError,
   PositionCapacityExceededError,
 } from '../shared/task.errors.js';
 import { TASK_SELECT, toTask } from '../shared/task.mapper.js';
@@ -23,11 +30,12 @@ export class OrderingHandlers {
   constructor(
     private readonly mutations: TaskMutationService,
     private readonly store: TaskStore,
+    private readonly clock: Clock,
   ) {}
 
   /**
-   * Reorders a task inside its lane and/or moves it to another project (or Inbox). The client names a neighbour; the
-   * rank is computed here. When the gap between the neighbours is used up the lane is renumbered first (and the response
+   * Reorders a task inside its lane, moves it to another project (or Inbox) and/or drops it into another status column,
+   * in one step (a board drag). The client names a neighbour; the rank, `completedAt` and the version bump are decided here. When the gap between the neighbours is used up the lane is renumbered first (and the response
    * says so). Placing a task where it already is succeeds without changing anything, so a retried move is safe.
    */
   move(
@@ -43,8 +51,11 @@ export class OrderingHandlers {
       async ({ tx, task }) => {
         const projectId =
           request.projectId === undefined ? task.projectId : request.projectId;
+        const status = request.status ?? task.status;
+        if (!canTransition(task.status, status))
+          throw new InvalidStatusTransitionError();
         await this.store.requireEditableProject(tx, workspaceId, projectId); // the source project was checked by `mutate`
-        const lane: Lane = { workspaceId, projectId, status: task.status };
+        const lane: Lane = { workspaceId, projectId, status };
         const placement = {
           beforeId: request.beforeId,
           afterId: request.afterId,
@@ -55,6 +66,7 @@ export class OrderingHandlers {
         if (index === null) throw new InvalidPlacementError();
         const alreadyThere =
           projectId === task.projectId &&
+          status === task.status &&
           inLane.findIndex((candidate) => candidate.id === taskId) === index;
         if (alreadyThere) return { task: toTask(task), laneRebalanced: false };
         requireVersion(task, request.version);
@@ -75,7 +87,14 @@ export class OrderingHandlers {
           where: { id: taskId },
           data: {
             projectId,
+            status,
             position: slot.position,
+            completedAt: completedAtAfter(
+              task.status,
+              status,
+              task.completedAt,
+              this.clock.now(),
+            ),
             version: { increment: 1 },
           },
           select: TASK_SELECT,

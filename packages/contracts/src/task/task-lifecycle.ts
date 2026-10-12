@@ -61,14 +61,16 @@ export const assignTaskRequestSchema = z
 export type AssignTaskRequest = z.infer<typeof assignTaskRequestSchema>;
 
 /**
- * Placing a task: in its own project's lane or another's (`projectId`, `null` = Inbox, omitted = stay), right before
- * (`beforeId`) or right after (`afterId`) a neighbour, or at the end when neither is given. Clients name neighbours;
- * the server alone computes ranks. The lane is always the task's current status within the destination project.
+ * Placing a task: in its own project's lane or another's (`projectId`, `null` = Inbox, omitted = stay), in the column of
+ * another status (`status`, omitted = stay), right before (`beforeId`) or right after (`afterId`) a neighbour, or at the
+ * end when neither is given. Clients name neighbours; the server alone computes ranks and `completedAt`. The lane is
+ * the destination project's lane for the resulting status.
  */
 export const moveTaskRequestSchema = z
   .object({
     version: z.number().int().min(1),
     projectId: z.uuid().nullable().optional(),
+    status: z.enum(TASK_STATUSES).optional(),
     beforeId: z.uuid().optional(),
     afterId: z.uuid().optional(),
   })

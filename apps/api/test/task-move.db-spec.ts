@@ -403,7 +403,9 @@ describe('moving and reordering tasks (database)', () => {
       ).map((t) => t.position);
       expect(ranks.length).toBe(new Set(ranks).size);
       expect(
-        ranks.every((r) => r % 1024n === 0n || r === BigInt(res.body.task.position)),
+        ranks.every(
+          (r) => r % 1024n === 0n || r === BigInt(res.body.task.position),
+        ),
       ).toBe(true);
       expect((await stored(a!)).version).toBe(2); // renumbered tasks are marked as changed
     });
@@ -472,6 +474,218 @@ describe('moving and reordering tasks (database)', () => {
         position: 1024n,
         version: 1,
       });
+    });
+  });
+
+  describe('dropping into another status column (status + place in one call)', () => {
+    const status = (s: Scenario, id: string, to: string, version: number) =>
+      http()
+        .post(`${base(s.ws)}/${id}/status`)
+        .set(auth(s.owner.token))
+        .send({ status: to, version })
+        .expect(200);
+
+    /** A board column: tasks created in Inbox and moved to `to` with the status endpoint, returned in column order. */
+    async function column(s: Scenario, titles: string[], to: string) {
+      const ids = await lane(s, titles);
+      for (const id of ids) await status(s, id, to, 1);
+      return ids;
+    }
+
+    it('changes the status and lands between two tasks of the target column, in one step', async () => {
+      const s = await fx.scenario();
+      const [x] = await lane(s, ['X']);
+      const [a, b] = await column(s, ['A', 'B'], 'IN_PROGRESS');
+      const res = await move(s.owner.token, s.ws, x!, {
+        version: 1,
+        status: 'IN_PROGRESS',
+        afterId: a,
+      }).expect(200);
+      expect(res.body.task).toMatchObject({
+        status: 'IN_PROGRESS',
+        version: 2,
+        completedAt: null,
+        position: '1536',
+      });
+      expect(res.body.laneRebalanced).toBe(false);
+      expect(await order(s, null, 'IN_PROGRESS')).toBe('AXB');
+      expect(await order(s, null, 'TODO')).toBe('');
+      expect(b).toBeDefined();
+    });
+
+    it('bumps the version once, however many things change at the same time', async () => {
+      const s = await fx.scenario();
+      const p = await project(s.ws);
+      const [x] = await lane(s, ['X']);
+      const res = await move(s.owner.token, s.ws, x!, {
+        version: 1,
+        status: 'DONE',
+        projectId: p.id,
+      }).expect(200);
+      expect(res.body.task).toMatchObject({
+        status: 'DONE',
+        projectId: p.id,
+        version: 2,
+        position: '1024',
+      });
+    });
+
+    it('goes to the end of the column when no neighbour is named, exactly like the status endpoint', async () => {
+      const s = await fx.scenario();
+      const [x] = await lane(s, ['X']);
+      await column(s, ['A', 'B'], 'IN_PROGRESS');
+      const res = await move(s.owner.token, s.ws, x!, {
+        version: 1,
+        status: 'IN_PROGRESS',
+      }).expect(200);
+      expect(res.body.task.position).toBe('3072');
+      expect(await order(s, null, 'IN_PROGRESS')).toBe('ABX');
+    });
+
+    it('keeps completedAt in step: set on entering DONE, cleared on leaving it, kept by a reorder inside DONE', async () => {
+      const s = await fx.scenario();
+      const [x] = await lane(s, ['X']);
+      const [a] = await column(s, ['A'], 'DONE');
+      const done = (
+        await move(s.owner.token, s.ws, x!, {
+          version: 1,
+          status: 'DONE',
+          beforeId: a,
+        }).expect(200)
+      ).body.task;
+      expect(done.completedAt).toEqual(expect.any(String));
+      expect(await order(s, null, 'DONE')).toBe('XA');
+
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const reordered = await move(s.owner.token, s.ws, x!, {
+        version: 2,
+        status: 'DONE',
+        afterId: a,
+      }).expect(200);
+      expect(reordered.body.task.completedAt).toBe(done.completedAt); // DONE -> DONE keeps the completion time
+
+      const reopened = await move(s.owner.token, s.ws, x!, {
+        version: 3,
+        status: 'TODO',
+      }).expect(200);
+      expect(reopened.body.task).toMatchObject({
+        status: 'TODO',
+        completedAt: null,
+      });
+    });
+
+    it('follows the same status graph as the status endpoint', async () => {
+      const s = await fx.scenario();
+      const [x] = await lane(s, ['X']);
+      await status(s, x!, 'CANCELED', 1);
+      for (const to of ['IN_PROGRESS', 'DONE']) {
+        const res = await move(s.owner.token, s.ws, x!, {
+          version: 2,
+          status: to,
+        }).expect(409);
+        expect(res.body.code).toBe('INVALID_STATUS_TRANSITION');
+      }
+      expect(await stored(x!)).toMatchObject({
+        status: 'CANCELED',
+        version: 2,
+      });
+      await move(s.owner.token, s.ws, x!, {
+        version: 2,
+        status: 'TODO',
+      }).expect(200);
+    });
+
+    it('takes neighbours from the destination column, not from where the task came from', async () => {
+      const s = await fx.scenario();
+      const [x, y] = await lane(s, ['X', 'Y']); // both in TODO
+      const res = await move(s.owner.token, s.ws, x!, {
+        version: 1,
+        status: 'IN_PROGRESS',
+        beforeId: y,
+      }).expect(422);
+      expect(res.body.code).toBe('INVALID_PLACEMENT');
+      expect(await stored(x!)).toMatchObject({ status: 'TODO', version: 1 });
+    });
+
+    it('frees the old column rank and leaves the old column in order', async () => {
+      const s = await fx.scenario();
+      const [a, b, c] = await lane(s, ['A', 'B', 'C']);
+      await move(s.owner.token, s.ws, b!, {
+        version: 1,
+        status: 'DONE',
+      }).expect(200);
+      expect(await order(s, null, 'TODO')).toBe('AC');
+      expect((await stored(a!)).version).toBe(1);
+      expect((await stored(c!)).version).toBe(1);
+    });
+
+    it('renumbers the destination column when it has no room, and says so', async () => {
+      const s = await fx.scenario();
+      const [x] = await lane(s, ['X']);
+      const [a, b] = await column(s, ['A', 'B'], 'IN_PROGRESS');
+      await prisma.task.update({ where: { id: a }, data: { position: 5n } });
+      await prisma.task.update({ where: { id: b }, data: { position: 6n } });
+      const res = await move(s.owner.token, s.ws, x!, {
+        version: 1,
+        status: 'IN_PROGRESS',
+        afterId: a,
+      }).expect(200);
+      expect(res.body.laneRebalanced).toBe(true);
+      expect(await order(s, null, 'IN_PROGRESS')).toBe('AXB');
+    });
+
+    it('is still a no-op when the status is unchanged and the task is already in place', async () => {
+      const s = await fx.scenario();
+      const [a, b] = await column(s, ['A', 'B'], 'IN_PROGRESS');
+      const before = await stored(b!);
+      const res = await move(s.owner.token, s.ws, b!, {
+        version: before.version,
+        status: 'IN_PROGRESS',
+        afterId: a,
+      }).expect(200);
+      expect(res.body.task.version).toBe(before.version);
+    });
+
+    it('rejects a stale version when the status really changes, and is frozen in an archived project', async () => {
+      const s = await fx.scenario();
+      const [x] = await lane(s, ['X']);
+      await move(s.owner.token, s.ws, x!, {
+        version: 1,
+        status: 'IN_PROGRESS',
+      }).expect(200);
+      const stale = await move(s.owner.token, s.ws, x!, {
+        version: 1,
+        status: 'DONE',
+      }).expect(409);
+      expect(stale.body.code).toBe('TASK_VERSION_CONFLICT');
+
+      const p = await project(s.ws);
+      const [y] = await lane(s, ['Y'], { projectId: p.id });
+      await prisma.project.update({
+        where: { id: p.id },
+        data: { archivedAt: new Date() },
+      });
+      expect(
+        (
+          await move(s.owner.token, s.ws, y!, {
+            version: 1,
+            status: 'DONE',
+          }).expect(409)
+        ).body.code,
+      ).toBe('PROJECT_ARCHIVED');
+    });
+
+    it('gives distinct ranks when many tasks are dropped into the same column at once', async () => {
+      const s = await fx.scenario();
+      const ids = await lane(s, ['A', 'B', 'C', 'D', 'E']);
+      const results = await Promise.all(
+        ids.map((id) =>
+          move(s.owner.token, s.ws, id, { version: 1, status: 'DONE' }),
+        ),
+      );
+      expect(results.map((r) => r.status)).toEqual(Array(5).fill(200));
+      expect(results.every((r) => r.body.task.status === 'DONE')).toBe(true);
+      expect(new Set(results.map((r) => r.body.task.position)).size).toBe(5);
     });
   });
 
@@ -553,14 +767,16 @@ describe('moving and reordering tasks (database)', () => {
       await move(s.owner.token, s.ws, b!, { version: 2 }).expect(404);
     });
 
-    it('rejects ranks, statuses, both neighbours at once, a bad version and extra fields', async () => {
+    it('rejects ranks, unknown statuses, completion times, both neighbours at once, a bad version and extra fields', async () => {
       const s = await fx.scenario();
       const [a, b, c] = await lane(s, ['A', 'B', 'C']);
       for (const body of [
         {},
         { version: 0 },
         { version: 1, position: '1024' },
-        { version: 1, status: 'DONE' },
+        { version: 1, status: 'BLOCKED' },
+        { version: 1, status: null },
+        { version: 1, completedAt: '2026-10-12T00:00:00Z' },
         { version: 1, beforeId: b, afterId: c },
         { version: 1, beforeId: 'first' },
         { version: 1, projectId: 'inbox' },

@@ -185,11 +185,13 @@ Không có route mới: `priority` và `dueAt` đi qua `POST` (tạo) và `PATCH
 
 ## 7.4 — Sắp xếp và di chuyển (TDD)
 
-`POST /workspaces/:w/tasks/:id/move` với `{ version, projectId?, beforeId?, afterId? }` (strict) → `200 { task, laneRebalanced }`.
-Một route cho cả sắp xếp lại trong làn lẫn chuyển sang project khác / Inbox (`projectId: null`); bỏ `projectId` = giữ nguyên project.
+`POST /workspaces/:w/tasks/:id/move` với `{ version, projectId?, status?, beforeId?, afterId? }` (strict) → `200 { task, laneRebalanced }`.
+Một route cho sắp xếp lại trong làn, chuyển sang project khác / Inbox (`projectId: null`) và **thả sang cột trạng thái khác** (`status`) trong cùng một lời gọi (quyết định của Project Owner, phương án 2 cho Kanban); bỏ `projectId` / `status` = giữ nguyên.
 
-- **Client chỉ nêu láng giềng, không bao giờ gửi rank:** `beforeId` / `afterId` (không được cả hai), không có gì = cuối làn. `position`, `status`, `workspaceId` gửi lên → 400.
-  Làn đích luôn là `(workspace, project đích | Inbox, status hiện tại của task)` (ADR-009): task giữ trạng thái và `completedAt`, vào làn cùng trạng thái của project đích; làn cũ được nhả rank; người được giao và mọi chi tiết khác giữ nguyên.
+- **Client chỉ nêu láng giềng, không bao giờ gửi rank:** `beforeId` / `afterId` (không được cả hai), không có gì = cuối làn. `position`, `completedAt`, `workspaceId` gửi lên, hoặc `status` không có trong enum → 400.
+  Làn đích là `(workspace, project đích | Inbox, status đích)` (ADR-009), làn cũ được nhả rank; người được giao và mọi chi tiết khác giữ nguyên.
+- **Đổi trạng thái trong lúc di chuyển:** dùng lại đúng đồ thị của `/status` (`canTransition`: `CANCELED → IN_PROGRESS/DONE` → 409 `INVALID_STATUS_TRANSITION`) và quy tắc `completedAt` (`completedAtAfter`: đặt khi vào DONE, giữ khi DONE→DONE kể cả sắp xếp lại trong cột DONE, xóa khi rời DONE).
+  Mọi thứ (project, trạng thái, rank, `completedAt`) đổi trong **một** lần ghi, `version` tăng **một** lần. Láng giềng phải thuộc **cột đích** (láng giềng ở cột cũ → 422). Không nêu láng giềng = cuối cột đích, y như `/status`.
 - **Láng giềng không hợp lệ → 422 `INVALID_PLACEMENT`:** không ở trong làn đích (khác project, khác trạng thái, đã xóa, workspace khác, id lạ) hoặc chính task đó. Hai trường hợp project đích: đã lưu trữ → 409 `PROJECT_ARCHIVED`; khác workspace / không tồn tại → 404.
   Task thuộc project đã lưu trữ bị đóng băng (409) như các thao tác ghi khác.
 - **Idempotent:** đặt task vào đúng chỗ nó đang ở (cùng project, đã nằm đúng giữa láng giềng đó / đã ở cuối) → 200, không đổi `version`/`position`/`updatedAt`, bỏ qua kiểm tra `version`. Thay đổi thật với `version` cũ → 409.
@@ -199,9 +201,9 @@ Một route cho cả sắp xếp lại trong làn lẫn chuyển sang project kh
   rồi mới về rank cuối trong một câu `UPDATE … FROM (VALUES …)` hai bước; chỉ các dòng thực sự đổi rank mới bị tăng `version`/`updatedAt`. Tombstone, làn khác và workspace khác không bị đụng. Hết chỗ rank → 409 `POSITION_CAPACITY_EXCEEDED`.
 - **Đồng thời:** mọi bước nằm trong một giao dịch dưới khóa workspace; 6 task cùng chuyển vào một làn nhận 6 rank khác nhau; nhiều thao tác khác nhau trên cùng task với cùng `version` → tối đa một thắng, còn lại 409. Mọi thành viên ACTIVE đều di chuyển được. Throttle 120/phút/người dùng (kéo thả tạo nhiều request).
 - **Cấu trúc:** hàm thuần `insertionIndex` / `neighbourRanks` (`placement.ts`) và `planRebalance` / `positionBetween` (`position.ts`); `TaskStore.rebalanceLane` chứa SQL; `OrderingHandlers.move` chỉ gồm guard clause.
-- **Chưa làm / quyết ở 7.5:** thả task sang **cột trạng thái khác** (Kanban) hiện là hai lời gọi (`/status` rồi `/move`) vì `/status` luôn nối cuối làn đích; nếu UI cần một lời gọi, thêm `status` tùy chọn vào `/move` tái dùng `canTransition`/`completedAtAfter`.
+- `/status` vẫn tồn tại cho đổi trạng thái không cần vị trí (hộp chọn, nút "hoàn thành"); kéo thả dùng `/move`.
 
-**Kiểm thử:** contracts `task-move.spec` (6); unit `position.spec` (+7 cho `planRebalance`, kể cả `[0, MAX]`), `placement.spec` (4); database `task-move.db-spec` (22).
+**Kiểm thử:** contracts `task-move.spec` (7); unit `position.spec` (+7 cho `planRebalance`, kể cả `[0, MAX]`), `placement.spec` (4); database `task-move.db-spec` (33, trong đó 11 cho kéo thả sang cột trạng thái khác).
 
 ## Câu hỏi mở
 

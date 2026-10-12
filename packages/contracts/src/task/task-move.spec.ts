@@ -19,6 +19,13 @@ describe('moveTaskRequestSchema', () => {
     expect(moveTaskRequestSchema.parse({ version: 1, projectId: null, afterId: b })).toEqual({ version: 1, projectId: null, afterId: b });
   });
 
+  it('can also change the status in the same move (a drop into another column)', () => {
+    for (const status of ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELED']) {
+      expect(moveTaskRequestSchema.parse({ version: 1, status })).toEqual({ version: 1, status });
+    }
+    expect(moveTaskRequestSchema.parse({ version: 2, status: 'DONE', projectId: a, beforeId: b })).toEqual({ version: 2, status: 'DONE', projectId: a, beforeId: b });
+  });
+
   it('cannot say both before and after', () => {
     expect(moveTaskRequestSchema.safeParse({ version: 1, beforeId: a, afterId: b }).success).toBe(false);
   });
@@ -30,7 +37,10 @@ describe('moveTaskRequestSchema', () => {
       { version: '1' },
       { version: 1, position: '1024' },
       { version: 1, position: 1024 },
-      { version: 1, status: 'DONE' },
+      { version: 1, status: 'BLOCKED' },
+      { version: 1, status: 'done' },
+      { version: 1, status: null },
+      { version: 1, completedAt: '2026-10-12T00:00:00Z' },
       { version: 1, beforeId: 'first' },
       { version: 1, afterId: '' },
       { version: 1, beforeId: null },
