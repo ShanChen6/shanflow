@@ -7,13 +7,17 @@ const request = {
   displayName: 'Ann',
 };
 
-function setup(create: ReturnType<typeof vi.fn>) {
+function setup(
+  create: ReturnType<typeof vi.fn>,
+  send: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined),
+) {
   const hash = vi.fn().mockResolvedValue('$argon2id$hashed');
   const handler = new RegisterHandler(
     { user: { create } } as never,
     { hash } as never,
+    { send } as never,
   );
-  return { handler, hash };
+  return { handler, hash, send };
 }
 
 describe('RegisterHandler', () => {
@@ -83,8 +87,49 @@ describe('RegisterHandler', () => {
     const handler = new RegisterHandler(
       { user: { create } } as never,
       { hash } as never,
+      { send: vi.fn() } as never,
     );
     await expect(handler.execute(request)).rejects.toThrow(RangeError);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('sends the verification link to the new account only after it exists', async () => {
+    const created = {
+      id: 'id-1',
+      email: 'ann@example.invalid',
+      displayName: 'Ann',
+      emailVerifiedAt: null,
+    };
+    const create = vi.fn().mockResolvedValue(created);
+    const { handler, send } = setup(create);
+    await handler.execute(request);
+    expect(send).toHaveBeenCalledWith(created);
+  });
+
+  it('still succeeds when the verification link cannot be prepared', async () => {
+    const create = vi.fn().mockResolvedValue({
+      id: 'id-1',
+      email: 'ann@example.invalid',
+      displayName: 'Ann',
+      emailVerifiedAt: null,
+    });
+    const { handler } = setup(
+      create,
+      vi.fn().mockRejectedValue(new Error('db down')),
+    );
+    await expect(handler.execute(request)).resolves.toMatchObject({
+      user: { id: 'id-1' },
+    });
+  });
+
+  it('sends nothing when the email is already registered', async () => {
+    const create = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));
+    const { handler, send } = setup(create);
+    await expect(handler.execute(request)).rejects.toBeInstanceOf(
+      EmailAlreadyRegisteredError,
+    );
+    expect(send).not.toHaveBeenCalled();
   });
 });

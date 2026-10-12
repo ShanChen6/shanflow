@@ -87,6 +87,7 @@ describe('POST /auth/register (database)', () => {
       select: { id: true },
     });
     const ids = users.map((user) => user.id);
+    await prisma.oneTimeToken.deleteMany({ where: { userId: { in: ids } } });
     await prisma.passwordCredential.deleteMany({
       where: { userId: { in: ids } },
     });

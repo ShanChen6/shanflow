@@ -24,6 +24,10 @@ import { JwtAuthGuard } from './shared/jwt-auth.guard.js';
 import { RefreshController } from './refresh/refresh.controller.js';
 import { RefreshHandler } from './refresh/refresh.handler.js';
 import { CookieCsrfGuard } from './shared/cookie-csrf.guard.js';
+import { ConfirmEmailHandler } from './verify-email/confirm-email.handler.js';
+import { RequestVerificationHandler } from './verify-email/request-verification.handler.js';
+import { VerifyEmailController } from './verify-email/verify-email.controller.js';
+import { EmailVerificationService } from './shared/email-verification.service.js';
 import { RegisterController } from './register/register.controller.js';
 import { RegisterHandler } from './register/register.handler.js';
 
@@ -63,6 +67,7 @@ function loginEmailTracker(request: Record<string, unknown>): string {
     MeController,
     RefreshController,
     LogoutController,
+    VerifyEmailController,
   ],
   // Other feature modules import AuthModule to use @UseGuards(JwtAuthGuard).
   exports: [JwtAuthGuard, SensitiveSessionGuard, AccessTokenService],
@@ -72,6 +77,9 @@ function loginEmailTracker(request: Record<string, unknown>): string {
     MeHandler,
     RefreshHandler,
     LogoutHandler,
+    RequestVerificationHandler,
+    ConfirmEmailHandler,
+    EmailVerificationService,
     CookieCsrfGuard,
     JwtAuthGuard,
     AccessTokenService,
