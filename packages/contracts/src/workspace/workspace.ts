@@ -12,7 +12,7 @@ export const workspaceNameSchema = z
   .trim()
   .min(1)
   .max(WORKSPACE_NAME_MAX_LENGTH)
-  .refine((value) => !/[\p{Cc}\p{Cf}  ]/u.test(value))
+  .refine((value) => !/[\p{Cc}\p{Cf}\u2028\u2029]/u.test(value))
   .transform((value) => value.normalize('NFC'));
 
 /** A workspace as seen by one member: `role` is the caller's own role in it. */
