@@ -60,3 +60,15 @@ export class PasswordNotSetError extends DomainError {
     super('PASSWORD_NOT_SET', 400, 'This account has no password yet.');
   }
 }
+
+export class OAuthNotConfiguredError extends DomainError {
+  constructor() {
+    super('OAUTH_NOT_CONFIGURED', 503, 'Google sign-in is not available.');
+  }
+}
+
+export class AlreadyLinkedError extends DomainError {
+  constructor() {
+    super('ALREADY_LINKED', 409, 'A Google account is already linked.');
+  }
+}

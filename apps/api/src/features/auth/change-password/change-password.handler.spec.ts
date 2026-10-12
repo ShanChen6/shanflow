@@ -24,16 +24,14 @@ function setup(
   } = {},
 ) {
   const update = vi.fn().mockResolvedValue({});
-  const findUnique = vi
-    .fn()
-    .mockResolvedValue(
-      'user' in options
-        ? options.user
-        : {
-            accountStatus: 'ACTIVE',
-            passwordCredential: { passwordHash: '$argon2id$current' },
-          },
-    );
+  const findUnique = vi.fn().mockResolvedValue(
+    'user' in options
+      ? options.user
+      : {
+          accountStatus: 'ACTIVE',
+          passwordCredential: { passwordHash: '$argon2id$current' },
+        },
+  );
   const tx = { passwordCredential: { update } };
   const prisma = {
     user: { findUnique },

@@ -34,6 +34,11 @@ import { ResetPasswordController } from './reset-password/reset-password.control
 import { ResetPasswordHandler } from './reset-password/reset-password.handler.js';
 import { ChangePasswordController } from './change-password/change-password.controller.js';
 import { ChangePasswordHandler } from './change-password/change-password.handler.js';
+import { GoogleCallbackHandler } from './google/google-callback.handler.js';
+import { GoogleController } from './google/google.controller.js';
+import { GoogleOAuthClient } from './google/google-oauth.client.js';
+import { GoogleStartHandler } from './google/google-start.handler.js';
+import { OAuthStateService } from './google/oauth-state.service.js';
 import { RegisterController } from './register/register.controller.js';
 import { RegisterHandler } from './register/register.handler.js';
 
@@ -77,6 +82,7 @@ function loginEmailTracker(request: Record<string, unknown>): string {
     ForgotPasswordController,
     ResetPasswordController,
     ChangePasswordController,
+    GoogleController,
   ],
   // Other feature modules import AuthModule to use @UseGuards(JwtAuthGuard).
   exports: [JwtAuthGuard, SensitiveSessionGuard, AccessTokenService],
@@ -91,6 +97,10 @@ function loginEmailTracker(request: Record<string, unknown>): string {
     ForgotPasswordHandler,
     ResetPasswordHandler,
     ChangePasswordHandler,
+    GoogleOAuthClient,
+    OAuthStateService,
+    GoogleStartHandler,
+    GoogleCallbackHandler,
     EmailVerificationService,
     CookieCsrfGuard,
     JwtAuthGuard,

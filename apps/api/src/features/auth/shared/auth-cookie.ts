@@ -53,3 +53,40 @@ export function readCookie(
   }
   return undefined;
 }
+
+/**
+ * Carries the OAuth state across the redirect to the provider and back. It must be Lax, not Strict: the
+ * callback is a cross-site top-level navigation from the provider, and Strict cookies are not sent on those.
+ * Scoped to the Google routes and short-lived.
+ */
+export const OAUTH_STATE_COOKIE_NAME = 'shanflow_oauth';
+export const OAUTH_STATE_COOKIE_PATH = '/auth/google';
+export const OAUTH_STATE_MAX_AGE_MS = 10 * 60 * 1000;
+
+function oauthStateOptions(options: RefreshCookieOptions) {
+  return {
+    httpOnly: true,
+    secure: options.secure,
+    sameSite: 'lax' as const,
+    path: OAUTH_STATE_COOKIE_PATH,
+    ...(options.domain ? { domain: options.domain } : {}),
+  };
+}
+
+export function setOAuthStateCookie(
+  response: Response,
+  value: string,
+  options: RefreshCookieOptions,
+): void {
+  response.cookie(OAUTH_STATE_COOKIE_NAME, value, {
+    ...oauthStateOptions(options),
+    maxAge: OAUTH_STATE_MAX_AGE_MS,
+  });
+}
+
+export function clearOAuthStateCookie(
+  response: Response,
+  options: RefreshCookieOptions,
+): void {
+  response.clearCookie(OAUTH_STATE_COOKIE_NAME, oauthStateOptions(options));
+}

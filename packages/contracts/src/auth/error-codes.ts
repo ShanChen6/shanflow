@@ -10,6 +10,7 @@ export const AUTH_ERROR_CODES = {
   wrongPassword: 'WRONG_PASSWORD',
   passwordNotSet: 'PASSWORD_NOT_SET',
   oauthNotConfigured: 'OAUTH_NOT_CONFIGURED',
+  alreadyLinked: 'ALREADY_LINKED',
   tooManyRequests: 'TOO_MANY_REQUESTS',
   internalError: 'INTERNAL_ERROR',
 } as const;
