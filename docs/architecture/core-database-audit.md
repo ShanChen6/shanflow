@@ -430,7 +430,8 @@ changed statements is version-independent).
 
 - New migration `20261012010000_revoke_runtime_migration_history_access` revokes all
   privileges on `public._prisma_migrations` from `PUBLIC` and `shanflow_app`. It is
-  guarded by a `pg_roles` check so environments without the managed role replay it.
+  guarded by `pg_roles` and `to_regclass` checks so environments without the managed
+  role, and Prisma's shadow database (which has no `_prisma_migrations` table), replay it.
 - `scripts/db/provision-roles.sql` repeats the revoke when the table exists, so a
   re-provision does not restore the grant. Default privileges still grant CRUD on
   tables the migrator creates later; the migration is what removes it for the
