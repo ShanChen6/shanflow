@@ -1,6 +1,6 @@
 import { meResponseSchema, refreshResponseSchema, AUTH_ERROR_CODES, type MeResponse } from '@shanflow/contracts';
 import type { ZodType } from 'zod';
-import { requestJson, postJson, type ApiResult } from '@/shared/api/http-client';
+import { requestJson, requestNoContent, postJson, type ApiResult } from '@/shared/api/http-client';
 import { clearSession, getSession, sessionFromResponse, setSession, type Session } from './session-store';
 
 export type RefreshOutcome =
@@ -58,8 +58,11 @@ const isExpiring = (session: Session) => session.expiresAt - Date.now() <= EXPIR
 const isUnauthenticated = (result: ApiResult<unknown>) =>
   !result.ok && result.kind === 'problem' && result.problem.code === AUTH_ERROR_CODES.unauthenticated;
 
-/** GET with the in-memory access token; refreshes first when missing/expiring and retries once on 401. */
-export async function authedGetJson<T>(path: string, schema: ZodType<T>): Promise<AuthedResult<T>> {
+/**
+ * Runs an API call with the in-memory access token; refreshes first when it is missing or about to
+ * expire, and retries exactly once after a 401 (e.g. a revoked session). Never loops.
+ */
+async function withAccessToken<T>(call: (accessToken: string) => Promise<ApiResult<T>>): Promise<AuthedResult<T>> {
   let session = getSession();
   if (!session || isExpiring(session)) {
     const refreshed = await refreshSession();
@@ -68,14 +71,28 @@ export async function authedGetJson<T>(path: string, schema: ZodType<T>): Promis
     session = refreshed.session;
   }
 
-  const result = await requestJson({ method: 'GET', path, schema, accessToken: session.accessToken });
+  const result = await call(session.accessToken);
   if (!isUnauthenticated(result)) return result;
 
-  // The server did not accept the token (e.g. revoked): one refresh, one retry, never a loop.
   const refreshed = await refreshSession();
   if (refreshed.status === 'signed-out') return { ok: false, kind: 'signed-out' };
   if (refreshed.status === 'unavailable') return { ok: false, kind: 'unavailable' };
-  return requestJson({ method: 'GET', path, schema, accessToken: refreshed.session.accessToken });
+  return call(refreshed.session.accessToken);
+}
+
+export function authedGetJson<T>(path: string, schema: ZodType<T>): Promise<AuthedResult<T>> {
+  return withAccessToken((accessToken) => requestJson({ method: 'GET', path, schema, accessToken }));
+}
+
+/** Authenticated POST that answers 204 (logout-all). */
+export function authedPostNoContent(path: string): Promise<AuthedResult<void>> {
+  return withAccessToken((accessToken) => requestNoContent({ method: 'POST', path, accessToken }));
+}
+
+/** Ends this device's session: the refresh cookie authenticates the request. */
+export function postLogout(): Promise<ApiResult<void>> {
+  // keepalive so the revocation completes even if the page navigates away right after.
+  return requestNoContent({ method: 'POST', path: '/auth/logout', keepalive: true });
 }
 
 export function fetchMe(): Promise<AuthedResult<MeResponse>> {

@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 import { useSession, type Session } from '../shared/session-store';
-import { getBootstrapPhase, restoreSession, subscribeToBootstrap } from './bootstrap-store';
+import { getBootstrapPhase, restoreSession, subscribeToBootstrap } from '../shared/bootstrap-store';
 
 export type AuthStatus =
   | { state: 'loading' }

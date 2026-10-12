@@ -1,7 +1,7 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { resetBootstrap } from '../session/bootstrap-store';
+import { markSignedOut, resetBootstrap } from './bootstrap-store';
 import { clearSession, setSession } from './session-store';
 import { RequireAuth } from './require-auth';
 
@@ -57,5 +57,20 @@ describe('RequireAuth', () => {
     fetchMock.mockResolvedValueOnce(reply(200, { accessToken: 'jwt', tokenType: 'Bearer', expiresIn: 900, user }));
     await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('secret page')).toBeTruthy();
+  });
+
+  it('redirects without a restore attempt when the user signs out while the page is open', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    setSession({ accessToken: 't', expiresAt: Date.now() + 600_000, user });
+    render(<RequireAuth><p>secret page</p></RequireAuth>);
+    expect(screen.getByText('secret page')).toBeTruthy();
+    act(() => {
+      markSignedOut();
+      clearSession();
+    });
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'));
+    expect(screen.queryByText('secret page')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

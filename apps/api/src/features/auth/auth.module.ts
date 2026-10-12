@@ -12,6 +12,8 @@ import { LoginController } from './login/login.controller.js';
 import { LoginHandler } from './login/login.handler.js';
 import { AccessTokenService } from './shared/access-token.service.js';
 import { RefreshSessionStore } from './shared/refresh-session.store.js';
+import { LogoutController } from './logout/logout.controller.js';
+import { LogoutHandler } from './logout/logout.handler.js';
 import { MeController } from './me/me.controller.js';
 import { MeHandler } from './me/me.handler.js';
 import { JwtAuthGuard } from './shared/jwt-auth.guard.js';
@@ -56,6 +58,7 @@ function loginEmailTracker(request: Record<string, unknown>): string {
     LoginController,
     MeController,
     RefreshController,
+    LogoutController,
   ],
   // Other feature modules import AuthModule to use @UseGuards(JwtAuthGuard).
   exports: [JwtAuthGuard, AccessTokenService],
@@ -64,6 +67,7 @@ function loginEmailTracker(request: Record<string, unknown>): string {
     LoginHandler,
     MeHandler,
     RefreshHandler,
+    LogoutHandler,
     CookieCsrfGuard,
     JwtAuthGuard,
     AccessTokenService,

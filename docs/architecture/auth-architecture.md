@@ -366,6 +366,12 @@ Checklist chuẩn bị:
 | 7 | `logout`, `logout-all` | Revoke family/all |
 | 8 | Mở rộng: Google OAuth, verify email, forgot/change password | Mỗi cái một slice + review riêng |
 
+**Tiến độ (2026-10-12):** bước 0–7 đã triển khai trên `feat/auth`; bản ghi từng bước:
+[storage](auth-storage-implementation.md), [shared](auth-shared-implementation.md),
+[register](register-implementation.md), [login](login-implementation.md),
+[me + guard](me-guard-implementation.md), [refresh](refresh-implementation.md),
+[logout](logout-implementation.md). Bước 8 (Google, verify email, forgot/change password) chưa làm.
+
 Mỗi bước là một PR nhỏ, tự kiểm chứng được (lint, typecheck, test, build). Workspace
 API và Task API vẫn **NOT READY** cho đến khi authorization service (CDB-002..004) xong;
 Phase 3 chỉ mở khóa điều kiện "có danh tính đã xác thực".

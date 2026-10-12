@@ -1,5 +1,5 @@
-import { refreshSession } from '../shared/auth-client';
-import { getSession } from '../shared/session-store';
+import { refreshSession } from './auth-client';
+import { getSession } from './session-store';
 
 export type BootstrapPhase = 'idle' | 'checking' | 'done' | 'unavailable';
 
@@ -29,6 +29,14 @@ export function restoreSession(): void {
   if (getSession() || phase === 'checking') return;
   setPhase('checking');
   void refreshSession().then((outcome) => setPhase(outcome.status === 'unavailable' ? 'unavailable' : 'done'));
+}
+
+/**
+ * Called by sign-out before the session is cleared: the user is known to be signed out, so mounted
+ * pages must redirect immediately instead of trying to restore a session that was just revoked.
+ */
+export function markSignedOut(): void {
+  setPhase('done');
 }
 
 /** Test helper: forget any previous restore attempt. */

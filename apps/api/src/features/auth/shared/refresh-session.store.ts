@@ -170,4 +170,48 @@ export class RefreshSessionStore {
     }
     return outcome.status === 'reuse' ? { status: 'reuse' } : outcome;
   }
+
+  /**
+   * Revokes the whole family of the presented token (logout). Possession of any generation, even a
+   * consumed one, proves the caller holds the session. Idempotent: unknown tokens change nothing.
+   * Takes the same family lock as rotate(), so a concurrent refresh cannot slip a live successor in.
+   */
+  async revokeFamilyByToken(rawToken: string): Promise<boolean> {
+    const tokenHash = hashSecureToken(rawToken);
+    return this.prisma.$transaction(async (tx) => {
+      const found = await tx.refreshSession.findUnique({
+        where: { tokenHash },
+        select: { familyId: true },
+      });
+      if (!found) return false;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${found.familyId}::text, 0))`;
+      await tx.refreshSession.updateMany({
+        where: { familyId: found.familyId, revokedAt: null },
+        data: { revokedAt: this.clock.now() },
+      });
+      return true;
+    });
+  }
+
+  /**
+   * Revokes every live session of a user (logout-all, later password change or suspension). Locks each
+   * family in a fixed order first, so no in-flight rotation can create a surviving successor and two
+   * concurrent callers cannot deadlock. Sessions created after this call starts are not affected.
+   */
+  async revokeAllForUser(userId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const families = await tx.refreshSession.findMany({
+        where: { userId, revokedAt: null },
+        select: { familyId: true },
+        distinct: ['familyId'],
+      });
+      for (const familyId of families.map((family) => family.familyId).sort()) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${familyId}::text, 0))`;
+      }
+      await tx.refreshSession.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: this.clock.now() },
+      });
+    });
+  }
 }

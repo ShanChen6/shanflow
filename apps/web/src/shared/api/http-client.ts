@@ -60,3 +60,26 @@ export async function requestJson<T>({ method, path, schema, body, accessToken, 
 export function postJson<T>(path: string, body: unknown, schema: ZodType<T>, options: { keepalive?: boolean } = {}): Promise<ApiResult<T>> {
   return requestJson({ method: 'POST', path, body, schema, ...options });
 }
+
+/** For endpoints that answer 204 No Content on success (logout). Failures are problem+json as usual. */
+export async function requestNoContent(options: Omit<RequestOptions<never>, 'schema' | 'body'>): Promise<ApiResult<void>> {
+  const { method, path, accessToken, keepalive } = options;
+  const headers: Record<string, string> = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (method === 'POST') headers[CSRF_HEADER_NAME] = CSRF_HEADER_VALUE;
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      credentials: 'include',
+      headers,
+      ...(keepalive ? { keepalive: true } : {}),
+    });
+  } catch {
+    return { ok: false, kind: 'unavailable' };
+  }
+  if (response.ok) return { ok: true, data: undefined };
+  const problem = problemDetailsSchema.safeParse(await response.json().catch(() => undefined));
+  return problem.success ? { ok: false, kind: 'problem', problem: problem.data } : { ok: false, kind: 'unavailable' };
+}
