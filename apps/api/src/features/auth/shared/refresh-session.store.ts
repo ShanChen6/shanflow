@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { authConfig } from '../../../config/auth.config.js';
+import type { Tx } from './transaction.js';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { Clock } from '../../../shared/clock.js';
 import {
@@ -194,14 +195,26 @@ export class RefreshSessionStore {
   }
 
   /**
-   * Revokes every live session of a user (logout-all, later password change or suspension). Locks each
+   * Revokes every live session of a user (logout-all, password reset/change, later suspension). Locks each
    * family in a fixed order first, so no in-flight rotation can create a surviving successor and two
    * concurrent callers cannot deadlock. Sessions created after this call starts are not affected.
+   * `exceptFamilyId` keeps one family alive (the device that just changed its password); `tx` joins the
+   * caller's transaction so the revocation commits atomically with the change that required it.
    */
-  async revokeAllForUser(userId: string): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+  async revokeAllForUser(
+    userId: string,
+    options: { exceptFamilyId?: string; tx?: Tx } = {},
+  ): Promise<void> {
+    const scope = {
+      userId,
+      revokedAt: null,
+      ...(options.exceptFamilyId
+        ? { familyId: { not: options.exceptFamilyId } }
+        : {}),
+    };
+    const run = async (tx: Tx) => {
       const families = await tx.refreshSession.findMany({
-        where: { userId, revokedAt: null },
+        where: scope,
         select: { familyId: true },
         distinct: ['familyId'],
       });
@@ -209,9 +222,31 @@ export class RefreshSessionStore {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${familyId}::text, 0))`;
       }
       await tx.refreshSession.updateMany({
-        where: { userId, revokedAt: null },
+        where: scope,
         data: { revokedAt: this.clock.now() },
       });
+    };
+    if (options.tx) await run(options.tx);
+    else await this.prisma.$transaction(run);
+  }
+
+  /**
+   * The session family behind an access token's `sid`, if it is still live (not revoked, not expired).
+   * JwtAuthGuard is stateless; sensitive operations call this to honour revocation immediately.
+   */
+  async findLiveSession(
+    sessionId: string,
+    userId: string,
+  ): Promise<{ familyId: string } | null> {
+    const session = await this.prisma.refreshSession.findFirst({
+      where: {
+        id: sessionId,
+        userId,
+        revokedAt: null,
+        expiresAt: { gt: this.clock.now() },
+      },
+      select: { familyId: true },
     });
+    return session;
   }
 }

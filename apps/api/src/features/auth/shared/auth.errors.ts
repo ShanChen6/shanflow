@@ -30,3 +30,20 @@ export class CsrfRejectedError extends DomainError {
     super('CSRF_REJECTED', 403, 'The request origin is not allowed.');
   }
 }
+
+/** An emailed one-time token that is unknown, expired, already used or for another purpose. */
+export class InvalidTokenError extends DomainError {
+  constructor() {
+    super('INVALID_TOKEN', 400, 'This link is invalid or has expired.');
+  }
+}
+
+export class PasswordUnchangedError extends DomainError {
+  constructor() {
+    super(
+      'PASSWORD_UNCHANGED',
+      400,
+      'The new password must differ from the current one.',
+    );
+  }
+}

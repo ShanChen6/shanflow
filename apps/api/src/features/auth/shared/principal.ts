@@ -4,6 +4,8 @@ import type { Request } from 'express';
 export interface Principal {
   userId: string;
   sessionId: string;
+  /** Set by SensitiveSessionGuard once the session was confirmed live in the database. */
+  familyId?: string;
 }
 
 export type AuthenticatedRequest = Request & { principal?: Principal };

@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from '../../database/prisma.module.js';
 import { authConfig } from '../../config/auth.config.js';
+import { ConsoleMailer, Mailer, SmtpMailer } from '../../shared/mail/mailer.js';
 import {
   Argon2PasswordHasher,
   PasswordHasher,
@@ -12,6 +13,9 @@ import { LoginController } from './login/login.controller.js';
 import { LoginHandler } from './login/login.handler.js';
 import { AccessTokenService } from './shared/access-token.service.js';
 import { RefreshSessionStore } from './shared/refresh-session.store.js';
+import { AuthMailService } from './shared/auth-mail.service.js';
+import { OneTimeTokenStore } from './shared/one-time-token.store.js';
+import { SensitiveSessionGuard } from './shared/sensitive-session.guard.js';
 import { LogoutController } from './logout/logout.controller.js';
 import { LogoutHandler } from './logout/logout.handler.js';
 import { MeController } from './me/me.controller.js';
@@ -61,7 +65,7 @@ function loginEmailTracker(request: Record<string, unknown>): string {
     LogoutController,
   ],
   // Other feature modules import AuthModule to use @UseGuards(JwtAuthGuard).
-  exports: [JwtAuthGuard, AccessTokenService],
+  exports: [JwtAuthGuard, SensitiveSessionGuard, AccessTokenService],
   providers: [
     RegisterHandler,
     LoginHandler,
@@ -72,6 +76,17 @@ function loginEmailTracker(request: Record<string, unknown>): string {
     JwtAuthGuard,
     AccessTokenService,
     RefreshSessionStore,
+    OneTimeTokenStore,
+    AuthMailService,
+    SensitiveSessionGuard,
+    {
+      provide: Mailer,
+      inject: [authConfig.KEY],
+      useFactory: (config: ConfigType<typeof authConfig>) =>
+        config.MAIL_TRANSPORT === 'smtp' && config.SMTP_URL
+          ? SmtpMailer.fromUrl(config.SMTP_URL, config.MAIL_FROM)
+          : new ConsoleMailer(),
+    },
     { provide: PasswordHasher, useClass: Argon2PasswordHasher },
     { provide: Clock, useClass: SystemClock },
   ],
