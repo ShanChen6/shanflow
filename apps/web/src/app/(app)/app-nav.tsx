@@ -4,6 +4,7 @@ const LINKS = [
   { href: '/profile', label: 'Profile' },
   { href: '/account', label: 'Security' },
   { href: '/workspace', label: 'Workspace' },
+  { href: '/projects', label: 'Projects' },
   { href: '/settings', label: 'Settings' },
 ];
 

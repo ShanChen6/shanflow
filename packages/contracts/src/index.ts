@@ -16,3 +16,4 @@ export * from './user/update-profile.js';
 export * from './user/avatar.js';
 export * from './user/settings.js';
 export * from './workspace/workspace.js';
+export * from './project/project.js';
