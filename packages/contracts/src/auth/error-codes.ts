@@ -6,6 +6,8 @@ export const AUTH_ERROR_CODES = {
   unauthenticated: 'UNAUTHENTICATED',
   forbidden: 'FORBIDDEN',
   notFound: 'NOT_FOUND',
+  projectArchived: 'PROJECT_ARCHIVED',
+  projectLimitReached: 'PROJECT_LIMIT_REACHED',
   csrfRejected: 'CSRF_REJECTED',
   invalidToken: 'INVALID_TOKEN',
   passwordUnchanged: 'PASSWORD_UNCHANGED',

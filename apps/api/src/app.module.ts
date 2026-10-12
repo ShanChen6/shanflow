@@ -7,11 +7,20 @@ import { AppConfigModule } from './config/app.config.js';
 import { HealthModule } from './health/health.module.js';
 import { DomainErrorFilter } from './shared/http/problem-details.filter.js';
 import { AuthModule } from './features/auth/auth.module.js';
+import { ProjectModule } from './features/project/project.module.js';
 import { UserModule } from './features/user/user.module.js';
 import { WorkspaceModule } from './features/workspace/workspace.module.js';
 
 @Module({
-  imports: [AppConfigModule, PrismaModule, HealthModule, AuthModule, UserModule, WorkspaceModule],
+  imports: [
+    AppConfigModule,
+    PrismaModule,
+    HealthModule,
+    AuthModule,
+    UserModule,
+    WorkspaceModule,
+    ProjectModule,
+  ],
   controllers: [AppController],
   providers: [
     AppService,
