@@ -429,3 +429,36 @@ giữ nguyên lịch sử, code, dependencies, lockfile, schema, Compose và dat
 Không commit/push hoặc bắt đầu Phase 2 trong lượt này. Bước tiếp theo được phép
 là Phase 2.1 theo điều kiện RA-001 khi có yêu cầu triển khai riêng; Development
 Team tiếp tục theo dõi fixes và review controls/triggers tới deadline.
+
+## K. Prompt 2.1C — Local Development Authorization Proposal
+
+Ngày lập: 2026-10-12. [IA-001 — Local Development Implementation Proposal](security/local-development-authorization.md)
+có trạng thái **PENDING OWNER APPROVAL**. Prompt 2.1C chỉ yêu cầu chuẩn bị hồ sơ,
+không có xác nhận riêng cho implementation; không tự mở rộng RA-001 design-only.
+
+Domain Design: **READY** theo 11 ADR/Design Freeze; Local Implementation
+Authorization: **PENDING OWNER APPROVAL**; Production Release: **NOT APPROVED**.
+SEC-01 và SEC-02 vẫn **High/Open**; không sửa severity, findings hoặc lịch sử audit.
+IA-001 đề xuất local modeling/migrations/verification sau approval, kèm isolation,
+SQL review/recovery controls; không cấp quyền staging/production hoặc destructive
+operations ngoài review. Không thực hiện implementation trong lượt này.
+
+
+## L. Prompt 2.1D — IA-001 Approval Recorded
+
+Ngày approval: **2026-10-12**. Project Owner xác nhận rõ trong ChatGPT conversation
+(Prompt 2.1D): phê duyệt IA-001 cho Local Development Implementation theo phạm vi
+và giới hạn hồ sơ. [IA-001](security/local-development-authorization.md) hiện
+**APPROVED FOR LOCAL DEVELOPMENT**; không suy diễn tên người duyệt/chữ ký.
+
+Quyền local bao gồm modeling/models, migration SQL review/apply trên target local
+đã xác minh, constraints/indexes, validate/generate và integration/disposable DB
+verification. NestJS modules theo bước được duyệt tiếp theo; không tự triển khai
+Phase 2.2 trong lượt record approval. Preflight target/runtime-migrator roles,
+review SQL/destructive operations, verification/recovery controls vẫn bắt buộc.
+
+SEC-01/SEC-02 vẫn **HIGH / OPEN**; severity/kết quả audit không đổi. Production
+Release và Staging Release đều **NOT APPROVED**, không production-ready. RA-001
+scope/lịch sử/deadline giữ nguyên; IA-001 là local authorization record riêng.
+Mục K pending là lịch sử 2.1C, được supersede ở gate hiện tại bởi approval này.
+Không models/migrations/DB/source/dependency changes hoặc commit/push ở 2.1D.

@@ -10,4 +10,151 @@ datasource db {
   provider = "postgresql"
 }
 
-// Foundation only: no business models, enums or migrations yet.
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+
+  @@map("account_status")
+}
+
+model User {
+  id              String            @id @default(uuid()) @db.Uuid
+  email           String            @unique(map: "users_email_key") @db.Text
+  displayName     String            @map("display_name") @db.Text
+  avatarUrl       String?           @map("avatar_url") @db.Text
+  accountStatus   AccountStatus     @default(ACTIVE) @map("account_status")
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  ownedWorkspaces Workspace[]       @relation("WorkspaceOwner")
+  memberships     WorkspaceMember[] @relation("MembershipUser")
+
+  @@map("users")
+}
+
+enum WorkspaceType {
+  PERSONAL
+  TEAM
+
+  @@map("workspace_type")
+}
+
+model Workspace {
+  id        String            @id @default(uuid()) @db.Uuid
+  name      String            @db.Text
+  ownerId   String            @map("owner_id") @db.Uuid
+  type      WorkspaceType     @default(PERSONAL)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  owner     User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  members   WorkspaceMember[] @relation("WorkspaceMembership")
+  projects  Project[]         @relation("WorkspaceProjects")
+  tasks     Task[]            @relation("WorkspaceTasks")
+
+  // PERSONAL uniqueness is a manual partial index in add_workspace.
+  @@index([ownerId], map: "workspaces_owner_id_idx")
+  @@map("workspaces")
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+
+  @@map("workspace_role")
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+
+  @@map("membership_status")
+}
+
+model WorkspaceMember {
+  id               String           @id @default(uuid()) @db.Uuid
+  workspaceId      String           @map("workspace_id") @db.Uuid
+  userId           String           @map("user_id") @db.Uuid
+  role             WorkspaceRole    @default(MEMBER)
+  membershipStatus MembershipStatus @default(ACTIVE) @map("membership_status")
+  joinedAt         DateTime         @default(now()) @map("joined_at") @db.Timestamptz(3)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace        Workspace        @relation("WorkspaceMembership", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  user             User             @relation("MembershipUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  createdTasks     Task[]           @relation("TaskCreatorMembership")
+  assignedTasks    Task[]           @relation("TaskAssigneeMembership")
+
+  // At-most-one OWNER (including INACTIVE) is a manual partial index.
+  // Matching ACTIVE ownership still requires the ADR-011 service protocol.
+  @@unique([workspaceId, userId], map: "workspace_members_workspace_id_user_id_key")
+  @@index([userId, membershipStatus, workspaceId], map: "workspace_members_user_status_workspace_idx")
+  @@index([workspaceId, membershipStatus], map: "workspace_members_workspace_status_idx")
+  @@map("workspace_members")
+}
+
+model Project {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  name        String    @db.Text
+  description String?   @db.Text
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz(3)
+  color       String?   @db.Text
+  icon        String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace   Workspace @relation("WorkspaceProjects", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  tasks       Task[]    @relation("TaskProject")
+
+  // Future Task(workspaceId, projectId) uses this all-row FK target.
+  @@unique([workspaceId, id], map: "projects_workspace_id_id_key")
+  @@index([workspaceId, archivedAt, createdAt, id], map: "projects_workspace_archive_created_id_idx")
+  @@map("projects")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELED
+
+  @@map("task_status")
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+
+  @@map("task_priority")
+}
+
+model Task {
+  id                 String           @id @default(uuid()) @db.Uuid
+  workspaceId        String           @map("workspace_id") @db.Uuid
+  projectId          String?          @map("project_id") @db.Uuid
+  title              String           @db.Text
+  description        String?          @db.Text
+  status             TaskStatus       @default(TODO)
+  priority           TaskPriority     @default(MEDIUM)
+  dueAt              DateTime?        @map("due_at") @db.Timestamptz(3)
+  assigneeId         String?          @map("assignee_id") @db.Uuid
+  createdById        String           @map("created_by_id") @db.Uuid
+  position           BigInt           @db.BigInt
+  version            Int              @default(1) @db.Integer
+  completedAt        DateTime?        @map("completed_at") @db.Timestamptz(3)
+  deletedAt          DateTime?        @map("deleted_at") @db.Timestamptz(3)
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace          Workspace        @relation("WorkspaceTasks", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  project            Project?         @relation("TaskProject", fields: [workspaceId, projectId], references: [workspaceId, id], onDelete: Restrict, onUpdate: NoAction)
+  creatorMembership  WorkspaceMember  @relation("TaskCreatorMembership", fields: [workspaceId, createdById], references: [workspaceId, userId], onDelete: Restrict, onUpdate: NoAction)
+  assigneeMembership WorkspaceMember? @relation("TaskAssigneeMembership", fields: [workspaceId, assigneeId], references: [workspaceId, userId], onDelete: Restrict, onUpdate: NoAction)
+
+  // Live lane uniqueness and query-only partial indexes are manual migration SQL.
+  @@unique([workspaceId, id], map: "tasks_workspace_id_id_key")
+  @@index([workspaceId, projectId], map: "tasks_workspace_project_idx")
+  @@index([workspaceId, createdById], map: "tasks_workspace_creator_idx")
+  @@index([workspaceId, assigneeId], map: "tasks_workspace_assignee_idx")
+  @@map("tasks")
+}
