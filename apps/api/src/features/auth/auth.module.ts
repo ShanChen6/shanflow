@@ -32,6 +32,8 @@ import { ForgotPasswordController } from './forgot-password/forgot-password.cont
 import { ForgotPasswordHandler } from './forgot-password/forgot-password.handler.js';
 import { ResetPasswordController } from './reset-password/reset-password.controller.js';
 import { ResetPasswordHandler } from './reset-password/reset-password.handler.js';
+import { ChangePasswordController } from './change-password/change-password.controller.js';
+import { ChangePasswordHandler } from './change-password/change-password.handler.js';
 import { RegisterController } from './register/register.controller.js';
 import { RegisterHandler } from './register/register.handler.js';
 
@@ -74,6 +76,7 @@ function loginEmailTracker(request: Record<string, unknown>): string {
     VerifyEmailController,
     ForgotPasswordController,
     ResetPasswordController,
+    ChangePasswordController,
   ],
   // Other feature modules import AuthModule to use @UseGuards(JwtAuthGuard).
   exports: [JwtAuthGuard, SensitiveSessionGuard, AccessTokenService],
@@ -87,6 +90,7 @@ function loginEmailTracker(request: Record<string, unknown>): string {
     ConfirmEmailHandler,
     ForgotPasswordHandler,
     ResetPasswordHandler,
+    ChangePasswordHandler,
     EmailVerificationService,
     CookieCsrfGuard,
     JwtAuthGuard,

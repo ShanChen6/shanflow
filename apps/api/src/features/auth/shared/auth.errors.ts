@@ -47,3 +47,16 @@ export class PasswordUnchangedError extends DomainError {
     );
   }
 }
+
+export class WrongPasswordError extends DomainError {
+  constructor() {
+    super('WRONG_PASSWORD', 400, 'The current password is incorrect.');
+  }
+}
+
+/** The account signs in without a password (e.g. Google only); the reset flow can set the first one. */
+export class PasswordNotSetError extends DomainError {
+  constructor() {
+    super('PASSWORD_NOT_SET', 400, 'This account has no password yet.');
+  }
+}

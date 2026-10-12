@@ -7,6 +7,8 @@ export const AUTH_ERROR_CODES = {
   csrfRejected: 'CSRF_REJECTED',
   invalidToken: 'INVALID_TOKEN',
   passwordUnchanged: 'PASSWORD_UNCHANGED',
+  wrongPassword: 'WRONG_PASSWORD',
+  passwordNotSet: 'PASSWORD_NOT_SET',
   oauthNotConfigured: 'OAUTH_NOT_CONFIGURED',
   tooManyRequests: 'TOO_MANY_REQUESTS',
   internalError: 'INTERNAL_ERROR',
