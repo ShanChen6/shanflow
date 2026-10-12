@@ -12,6 +12,9 @@ import { LoginController } from './login/login.controller.js';
 import { LoginHandler } from './login/login.handler.js';
 import { AccessTokenService } from './shared/access-token.service.js';
 import { RefreshSessionStore } from './shared/refresh-session.store.js';
+import { MeController } from './me/me.controller.js';
+import { MeHandler } from './me/me.handler.js';
+import { JwtAuthGuard } from './shared/jwt-auth.guard.js';
 import { RegisterController } from './register/register.controller.js';
 import { RegisterHandler } from './register/register.handler.js';
 
@@ -45,10 +48,14 @@ function loginEmailTracker(request: Record<string, unknown>): string {
       ],
     }),
   ],
-  controllers: [RegisterController, LoginController],
+  controllers: [RegisterController, LoginController, MeController],
+  // Other feature modules import AuthModule to use @UseGuards(JwtAuthGuard).
+  exports: [JwtAuthGuard, AccessTokenService],
   providers: [
     RegisterHandler,
     LoginHandler,
+    MeHandler,
+    JwtAuthGuard,
     AccessTokenService,
     RefreshSessionStore,
     { provide: PasswordHasher, useClass: Argon2PasswordHasher },

@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import {
   BadRequestException,
   ForbiddenException,
@@ -79,5 +80,38 @@ describe('problem details mapping', () => {
       ['type', 'application/problem+json'],
       ['json', expect.objectContaining({ code: 'CONFLICT', status: 409 })],
     ]);
+  });
+
+  it('advertises Bearer authentication on 401 only', () => {
+    const run = (error: DomainError) => {
+      const headers: string[] = [];
+      const response = {
+        setHeader: (name: string) => headers.push(name),
+        status: () => response,
+        type: () => response,
+        json: () => response,
+      };
+      const host = {
+        switchToHttp: () => ({ getResponse: () => response }),
+      } as unknown as ArgumentsHost;
+      new ProblemDetailsFilter().catch(error, host);
+      return headers;
+    };
+    expect(run(new DomainError('UNAUTHENTICATED', 401, 'x'))).toEqual([
+      'WWW-Authenticate',
+    ]);
+    expect(run(new DomainError('CONFLICT', 409, 'x'))).toEqual([]);
+  });
+});
+
+describe('DomainErrorFilter', () => {
+  it('is scoped to DomainError and reuses the problem+json mapping', async () => {
+    const { DomainErrorFilter } = await import('./problem-details.filter.js');
+    const caught = Reflect.getMetadata(
+      '__filterCatchExceptions__',
+      DomainErrorFilter,
+    ) as unknown[];
+    expect(caught).toEqual([DomainError]);
+    expect(new DomainErrorFilter()).toBeInstanceOf(ProblemDetailsFilter);
   });
 });

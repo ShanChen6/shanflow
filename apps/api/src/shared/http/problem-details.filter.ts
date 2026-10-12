@@ -75,6 +75,15 @@ export class ProblemDetailsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const body = toProblem(exception);
     const response = host.switchToHttp().getResponse<Response>();
+    // RFC 9110: a 401 must advertise how to authenticate.
+    if (body.status === 401) response.setHeader('WWW-Authenticate', 'Bearer');
     response.status(body.status).type('application/problem+json').json(body);
   }
 }
+
+/**
+ * Registered globally: maps only DomainError (including guard failures) so every feature gets
+ * consistent 4xx bodies, while framework HttpExceptions keep their own bodies (e.g. /health/ready).
+ */
+@Catch(DomainError)
+export class DomainErrorFilter extends ProblemDetailsFilter {}

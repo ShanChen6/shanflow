@@ -16,3 +16,10 @@ export class InvalidCredentialsError extends DomainError {
     super('INVALID_CREDENTIALS', 401, 'Invalid email or password.');
   }
 }
+
+/** Missing, malformed, expired or otherwise unusable access token (or its account is no longer active). */
+export class UnauthenticatedError extends DomainError {
+  constructor() {
+    super('UNAUTHENTICATED', 401, 'Authentication is required.');
+  }
+}

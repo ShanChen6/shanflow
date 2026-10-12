@@ -18,14 +18,12 @@ function setup(create: ReturnType<typeof vi.fn>) {
 
 describe('RegisterHandler', () => {
   it('stores the canonical email and password hash, and never the plaintext', async () => {
-    const create = vi
-      .fn()
-      .mockResolvedValue({
-        id: 'id-1',
-        email: 'ann@example.invalid',
-        displayName: 'Ann',
-        emailVerifiedAt: null,
-      });
+    const create = vi.fn().mockResolvedValue({
+      id: 'id-1',
+      email: 'ann@example.invalid',
+      displayName: 'Ann',
+      emailVerifiedAt: null,
+    });
     const { handler, hash } = setup(create);
     const result = await handler.execute(request);
     expect(hash).toHaveBeenCalledWith('correct horse battery');
@@ -50,14 +48,12 @@ describe('RegisterHandler', () => {
   });
 
   it('reports emailVerified true when a verification timestamp exists', async () => {
-    const create = vi
-      .fn()
-      .mockResolvedValue({
-        id: 'id-1',
-        email: 'a@b.io',
-        displayName: 'A',
-        emailVerifiedAt: new Date(),
-      });
+    const create = vi.fn().mockResolvedValue({
+      id: 'id-1',
+      email: 'a@b.io',
+      displayName: 'A',
+      emailVerifiedAt: new Date(),
+    });
     expect(
       (await setup(create).handler.execute(request)).user.emailVerified,
     ).toBe(true);

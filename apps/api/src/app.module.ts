@@ -1,14 +1,20 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { PrismaModule } from './database/prisma.module.js';
 import { AppConfigModule } from './config/app.config.js';
 import { HealthModule } from './health/health.module.js';
+import { DomainErrorFilter } from './shared/http/problem-details.filter.js';
 import { AuthModule } from './features/auth/auth.module.js';
 
 @Module({
   imports: [AppConfigModule, PrismaModule, HealthModule, AuthModule],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Global for DomainError only: a feature route without a filter would otherwise answer 500 for a guard failure.
+    { provide: APP_FILTER, useClass: DomainErrorFilter },
+  ],
 })
 export class AppModule {}
