@@ -33,7 +33,7 @@ describe('LoginForm', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('stores the session in memory and navigates home on success', async () => {
+  it('stores the session in memory and navigates to the account page on success', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true, status: 200,
       json: async () => ({ accessToken: 'jwt', tokenType: 'Bearer', expiresIn: 900, user }),
@@ -41,7 +41,7 @@ describe('LoginForm', () => {
     render(<LoginForm />);
     const actor = await fill();
     await actor.click(screen.getByRole('button', { name: 'Sign in' }));
-    await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/'));
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/account'));
     expect(getSession()).toMatchObject({ accessToken: 'jwt', user });
     expect(localStorage.length).toBe(0);
   });

@@ -1,4 +1,4 @@
-import { problemDetailsSchema, type ProblemDetails } from '@shanflow/contracts';
+import { CSRF_HEADER_NAME, CSRF_HEADER_VALUE, problemDetailsSchema, type ProblemDetails } from '@shanflow/contracts';
 import type { ZodType } from 'zod';
 import { API_BASE_URL } from '../config';
 
@@ -8,19 +8,35 @@ export type ApiResult<T> =
   // Network failure, or a response that does not match the contract.
   | { ok: false; kind: 'unavailable' };
 
+interface RequestOptions<T> {
+  method: 'GET' | 'POST';
+  path: string;
+  schema: ZodType<T>;
+  body?: unknown;
+  accessToken?: string;
+  /** Lets the request (and its Set-Cookie) complete even if the page unloads mid-flight. */
+  keepalive?: boolean;
+}
+
 /**
- * POSTs JSON to the API and validates the response against the slice contract.
- * Never throws: callers branch on the result. Cookies are sent so the refresh
- * session works once login exists.
+ * Calls the API and validates the response against the slice contract. Never throws: callers branch
+ * on the result. Cookies are always sent (the refresh cookie is scoped to /auth by the server).
+ * POSTs carry the CSRF marker header required by cookie-authenticated endpoints.
  */
-export async function postJson<T>(path: string, body: unknown, responseSchema: ZodType<T>): Promise<ApiResult<T>> {
+export async function requestJson<T>({ method, path, schema, body, accessToken, keepalive }: RequestOptions<T>): Promise<ApiResult<T>> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (method === 'POST') headers[CSRF_HEADER_NAME] = CSRF_HEADER_VALUE;
+
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'POST',
+      method,
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      ...(keepalive ? { keepalive: true } : {}),
     });
   } catch {
     return { ok: false, kind: 'unavailable' };
@@ -34,9 +50,13 @@ export async function postJson<T>(path: string, body: unknown, responseSchema: Z
   }
 
   if (response.ok) {
-    const parsed = responseSchema.safeParse(payload);
+    const parsed = schema.safeParse(payload);
     return parsed.success ? { ok: true, data: parsed.data } : { ok: false, kind: 'unavailable' };
   }
   const problem = problemDetailsSchema.safeParse(payload);
   return problem.success ? { ok: false, kind: 'problem', problem: problem.data } : { ok: false, kind: 'unavailable' };
+}
+
+export function postJson<T>(path: string, body: unknown, schema: ZodType<T>, options: { keepalive?: boolean } = {}): Promise<ApiResult<T>> {
+  return requestJson({ method: 'POST', path, body, schema, ...options });
 }

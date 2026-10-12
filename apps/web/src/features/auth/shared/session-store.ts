@@ -1,11 +1,16 @@
 import { useSyncExternalStore } from 'react';
-import type { AuthUser } from '@shanflow/contracts';
+import type { AuthUser, LoginResponse } from '@shanflow/contracts';
 
 export interface Session {
   accessToken: string;
   /** Epoch milliseconds when the access token stops being valid. */
   expiresAt: number;
   user: AuthUser;
+}
+
+/** Converts a login/refresh response into a session with an absolute expiry. */
+export function sessionFromResponse(response: LoginResponse, now = Date.now()): Session {
+  return { accessToken: response.accessToken, expiresAt: now + response.expiresIn * 1000, user: response.user };
 }
 
 // Kept in module memory only: never localStorage/sessionStorage, so XSS cannot read a persisted token

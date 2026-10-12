@@ -23,3 +23,10 @@ export class UnauthenticatedError extends DomainError {
     super('UNAUTHENTICATED', 401, 'Authentication is required.');
   }
 }
+
+/** A cookie-authenticated request that did not prove it came from the web app. */
+export class CsrfRejectedError extends DomainError {
+  constructor() {
+    super('CSRF_REJECTED', 403, 'The request origin is not allowed.');
+  }
+}

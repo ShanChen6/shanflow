@@ -1,5 +1,6 @@
 import {
   clearRefreshCookie,
+  readCookie,
   REFRESH_COOKIE_NAME,
   REFRESH_COOKIE_PATH,
   setRefreshCookie,
@@ -62,5 +63,40 @@ describe('refresh cookie', () => {
         { httpOnly: true, secure: true, sameSite: 'strict', path: '/auth' },
       ],
     ]);
+  });
+});
+
+describe('readCookie', () => {
+  it('finds the named cookie among others', () => {
+    expect(
+      readCookie('a=1; shanflow_refresh=tok-en_1; b=2', 'shanflow_refresh'),
+    ).toBe('tok-en_1');
+    expect(readCookie('shanflow_refresh=abc', 'shanflow_refresh')).toBe('abc');
+  });
+
+  it('does not match a cookie whose name merely contains the target', () => {
+    expect(
+      readCookie(
+        'x_shanflow_refresh=evil; shanflow_refresh_2=evil',
+        'shanflow_refresh',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('returns undefined for a missing header, missing cookie or empty value', () => {
+    expect(readCookie(undefined, 'shanflow_refresh')).toBeUndefined();
+    expect(readCookie('', 'shanflow_refresh')).toBeUndefined();
+    expect(readCookie('other=1', 'shanflow_refresh')).toBeUndefined();
+    expect(readCookie('shanflow_refresh=', 'shanflow_refresh')).toBeUndefined();
+    expect(readCookie('malformed', 'shanflow_refresh')).toBeUndefined();
+  });
+
+  it('uses the first occurrence when a name is repeated', () => {
+    expect(
+      readCookie(
+        'shanflow_refresh=first; shanflow_refresh=second',
+        'shanflow_refresh',
+      ),
+    ).toBe('first');
   });
 });

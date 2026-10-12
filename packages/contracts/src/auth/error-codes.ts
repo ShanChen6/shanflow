@@ -4,6 +4,7 @@ export const AUTH_ERROR_CODES = {
   emailAlreadyRegistered: 'EMAIL_ALREADY_REGISTERED',
   invalidCredentials: 'INVALID_CREDENTIALS',
   unauthenticated: 'UNAUTHENTICATED',
+  csrfRejected: 'CSRF_REJECTED',
   tooManyRequests: 'TOO_MANY_REQUESTS',
   internalError: 'INTERNAL_ERROR',
 } as const;

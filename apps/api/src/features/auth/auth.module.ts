@@ -15,6 +15,9 @@ import { RefreshSessionStore } from './shared/refresh-session.store.js';
 import { MeController } from './me/me.controller.js';
 import { MeHandler } from './me/me.handler.js';
 import { JwtAuthGuard } from './shared/jwt-auth.guard.js';
+import { RefreshController } from './refresh/refresh.controller.js';
+import { RefreshHandler } from './refresh/refresh.handler.js';
+import { CookieCsrfGuard } from './shared/cookie-csrf.guard.js';
 import { RegisterController } from './register/register.controller.js';
 import { RegisterHandler } from './register/register.handler.js';
 
@@ -48,13 +51,20 @@ function loginEmailTracker(request: Record<string, unknown>): string {
       ],
     }),
   ],
-  controllers: [RegisterController, LoginController, MeController],
+  controllers: [
+    RegisterController,
+    LoginController,
+    MeController,
+    RefreshController,
+  ],
   // Other feature modules import AuthModule to use @UseGuards(JwtAuthGuard).
   exports: [JwtAuthGuard, AccessTokenService],
   providers: [
     RegisterHandler,
     LoginHandler,
     MeHandler,
+    RefreshHandler,
+    CookieCsrfGuard,
     JwtAuthGuard,
     AccessTokenService,
     RefreshSessionStore,

@@ -37,3 +37,19 @@ export function clearRefreshCookie(
 ): void {
   response.clearCookie(REFRESH_COOKIE_NAME, baseOptions(options));
 }
+
+/** Minimal Cookie header reader (no parsing library needed for one opaque, URL-safe value). */
+export function readCookie(
+  header: string | undefined,
+  name: string,
+): string | undefined {
+  if (!header) return undefined;
+  for (const part of header.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator === -1) continue;
+    if (part.slice(0, separator).trim() !== name) continue;
+    const value = part.slice(separator + 1).trim();
+    return value === '' ? undefined : value;
+  }
+  return undefined;
+}

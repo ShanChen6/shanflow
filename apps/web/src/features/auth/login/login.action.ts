@@ -6,7 +6,7 @@ import {
   type ProblemDetails,
 } from '@shanflow/contracts';
 import { postJson } from '@/shared/api/http-client';
-import type { Session } from '../shared/session-store';
+import { sessionFromResponse, type Session } from '../shared/session-store';
 
 export type LoginField = keyof LoginRequest;
 export type LoginFieldErrors = Partial<Record<LoginField, string>>;
@@ -49,8 +49,7 @@ export function mapLoginProblem(problem: ProblemDetails): Extract<LoginOutcome, 
 export async function submitLogin(input: LoginRequest): Promise<LoginOutcome> {
   const result = await postJson('/auth/login', input, loginResponseSchema);
   if (result.ok) {
-    const { accessToken, expiresIn, user } = result.data;
-    return { status: 'success', session: { accessToken, expiresAt: Date.now() + expiresIn * 1000, user } };
+    return { status: 'success', session: sessionFromResponse(result.data) };
   }
   if (result.kind === 'problem') return mapLoginProblem(result.problem);
   return { status: 'error', fieldErrors: {}, formError: 'Could not reach the server. Check your connection and try again.' };

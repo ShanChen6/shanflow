@@ -29,7 +29,7 @@ export function LoginForm() {
       const outcome = await submitLogin(input);
       if (outcome.status === 'success') {
         setSession(outcome.session);
-        router.push('/');
+        router.push('/account');
         return;
       }
       setErrors(outcome.fieldErrors);
