@@ -12,12 +12,18 @@ function setup(
   send: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined),
 ) {
   const hash = vi.fn().mockResolvedValue('$argon2id$hashed');
+  const ensure = vi.fn().mockResolvedValue({ workspaceId: 'ws-1' });
+  const tx = { user: { create } };
   const handler = new RegisterHandler(
-    { user: { create } } as never,
+    {
+      user: { create },
+      $transaction: (run: (t: unknown) => unknown) => run(tx),
+    } as never,
     { hash } as never,
     { send } as never,
+    { ensure } as never,
   );
-  return { handler, hash, send };
+  return { handler, hash, send, ensure, tx };
 }
 
 describe('RegisterHandler', () => {
@@ -28,8 +34,10 @@ describe('RegisterHandler', () => {
       displayName: 'Ann',
       emailVerifiedAt: null,
     });
-    const { handler, hash } = setup(create);
+    const { handler, hash, ensure, tx } = setup(create);
     const result = await handler.execute(request);
+    // The personal workspace is created inside the same transaction as the user.
+    expect(ensure).toHaveBeenCalledWith('id-1', tx);
     expect(hash).toHaveBeenCalledWith('correct horse battery');
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -85,9 +93,10 @@ describe('RegisterHandler', () => {
     const create = vi.fn();
     const hash = vi.fn().mockRejectedValue(new RangeError('bad length'));
     const handler = new RegisterHandler(
-      { user: { create } } as never,
+      { user: { create }, $transaction: vi.fn() } as never,
       { hash } as never,
       { send: vi.fn() } as never,
+      { ensure: vi.fn() } as never,
     );
     await expect(handler.execute(request)).rejects.toThrow(RangeError);
     expect(create).not.toHaveBeenCalled();

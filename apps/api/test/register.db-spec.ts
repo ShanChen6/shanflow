@@ -7,6 +7,7 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/database/prisma.service.js';
+import { deleteUsers } from './support/db-test-support.js';
 
 config({
   path: fileURLToPath(new URL('../../../.env', import.meta.url)),
@@ -87,11 +88,7 @@ describe('POST /auth/register (database)', () => {
       select: { id: true },
     });
     const ids = users.map((user) => user.id);
-    await prisma.oneTimeToken.deleteMany({ where: { userId: { in: ids } } });
-    await prisma.passwordCredential.deleteMany({
-      where: { userId: { in: ids } },
-    });
-    await prisma.user.deleteMany({ where: { id: { in: ids } } });
+    await deleteUsers(prisma, ids);
   });
 
   afterAll(async () => {

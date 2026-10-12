@@ -1,3 +1,4 @@
+import { PersonalWorkspaceService } from '../../workspace/shared/personal-workspace.service.js';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import type { OAuthErrorCode } from '@shanflow/contracts';
@@ -49,6 +50,7 @@ export class GoogleCallbackHandler {
     private readonly clock: Clock,
     @Inject(authConfig.KEY)
     private readonly config: ConfigType<typeof authConfig>,
+    private readonly personalWorkspace: PersonalWorkspaceService,
   ) {}
 
   private failure(code: OAuthErrorCode): CallbackResult {
@@ -135,23 +137,28 @@ export class GoogleCallbackHandler {
       return this.failure('account_exists');
 
     try {
-      const user = await this.prisma.user.create({
-        data: {
-          email,
-          displayName: displayNameFrom(profile, email),
-          avatarUrl: avatarFrom(profile),
-          // Google vouched for the address and we required email_verified.
-          emailVerifiedAt: this.clock.now(),
-          oauthAccounts: {
-            create: {
-              provider: 'GOOGLE',
-              providerAccountId: profile.subject,
-              providerEmail: profile.email,
-              providerEmailVerified: profile.emailVerified,
+      // One transaction: the user (with its Google link) and its personal workspace commit together.
+      const user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            email,
+            displayName: displayNameFrom(profile, email),
+            avatarUrl: avatarFrom(profile),
+            // Google vouched for the address and we required email_verified.
+            emailVerifiedAt: this.clock.now(),
+            oauthAccounts: {
+              create: {
+                provider: 'GOOGLE',
+                providerAccountId: profile.subject,
+                providerEmail: profile.email,
+                providerEmailVerified: profile.emailVerified,
+              },
             },
           },
-        },
-        select: { id: true },
+          select: { id: true },
+        });
+        await this.personalWorkspace.ensure(created.id, tx);
+        return created;
       });
       return this.signedIn(user.id);
     } catch (error) {

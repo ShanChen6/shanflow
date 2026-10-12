@@ -3,6 +3,7 @@ import { PasswordHasher } from '../../../shared/crypto/password-hasher.js';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { normalizeEmail } from '../../../database/normalize-email.js';
 import { EmailAlreadyRegisteredError } from '../shared/auth.errors.js';
+import { PersonalWorkspaceService } from '../../workspace/shared/personal-workspace.service.js';
 import { EmailVerificationService } from '../shared/email-verification.service.js';
 import type { RegisterRequest, RegisterResponse } from './register.schema.js';
 
@@ -25,6 +26,7 @@ export class RegisterHandler {
     private readonly prisma: PrismaService,
     private readonly hasher: PasswordHasher,
     private readonly verification: EmailVerificationService,
+    private readonly personalWorkspace: PersonalWorkspaceService,
   ) {}
 
   async execute(request: RegisterRequest): Promise<RegisterResponse> {
@@ -33,19 +35,23 @@ export class RegisterHandler {
     const passwordHash = await this.hasher.hash(request.password);
     let user;
     try {
-      // Nested create runs as one statement group, so the user and credential commit together.
-      user = await this.prisma.user.create({
-        data: {
-          email,
-          displayName: request.displayName,
-          passwordCredential: { create: { passwordHash } },
-        },
-        select: {
-          id: true,
-          email: true,
-          displayName: true,
-          emailVerifiedAt: true,
-        },
+      // One transaction: the user, its credential and its personal workspace commit together or not at all.
+      user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            email,
+            displayName: request.displayName,
+            passwordCredential: { create: { passwordHash } },
+          },
+          select: {
+            id: true,
+            email: true,
+            displayName: true,
+            emailVerifiedAt: true,
+          },
+        });
+        await this.personalWorkspace.ensure(created.id, tx);
+        return created;
       });
     } catch (error) {
       // The unique index on users.email is the authority, so concurrent signups are safe.
