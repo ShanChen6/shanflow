@@ -17,9 +17,12 @@ import { appendPosition } from './shared/position.js';
 import {
   PositionCapacityExceededError,
   TaskLimitReachedError,
-  TaskVersionConflictError,
 } from './shared/task.errors.js';
 import { TASK_SELECT, toTask } from './shared/task.mapper.js';
+import {
+  requireVersion,
+  TaskMutationService,
+} from './shared/task-mutation.service.js';
 import { TaskStore } from './shared/task-store.service.js';
 
 @Injectable()
@@ -28,6 +31,7 @@ export class TaskHandlers {
     private readonly prisma: PrismaService,
     private readonly access: WorkspaceAccessService,
     private readonly store: TaskStore,
+    private readonly mutations: TaskMutationService,
   ) {}
 
   create(
@@ -161,35 +165,31 @@ export class TaskHandlers {
     taskId: string,
     request: UpdateTaskRequest,
   ): Promise<TaskResponse> {
-    return this.prisma.$transaction(async (tx) => {
-      await this.access.require(
-        principal.userId,
-        workspaceId,
-        { lock: true },
-        tx,
-      );
-      await this.store.lockWorkspace(tx, workspaceId);
-      const current = await this.store.findLive(tx, workspaceId, taskId);
-      await this.store.requireTaskProjectEditable(tx, current);
-      if (current.version !== request.version)
-        throw new TaskVersionConflictError();
-
-      const row = await tx.task.update({
-        where: { id: taskId },
-        data: {
-          ...(request.title !== undefined && { title: request.title }),
-          ...(request.description !== undefined && {
-            description: request.description,
-          }),
-          ...(request.priority !== undefined && { priority: request.priority }),
-          ...(request.dueAt !== undefined && {
-            dueAt: request.dueAt ? new Date(request.dueAt) : null,
-          }),
-          version: { increment: 1 },
-        },
-        select: TASK_SELECT,
-      });
-      return { task: toTask(row) };
-    });
+    return this.mutations.mutate(
+      principal,
+      workspaceId,
+      taskId,
+      async ({ tx, task }) => {
+        requireVersion(task, request.version);
+        const row = await tx.task.update({
+          where: { id: taskId },
+          data: {
+            ...(request.title !== undefined && { title: request.title }),
+            ...(request.description !== undefined && {
+              description: request.description,
+            }),
+            ...(request.priority !== undefined && {
+              priority: request.priority,
+            }),
+            ...(request.dueAt !== undefined && {
+              dueAt: request.dueAt ? new Date(request.dueAt) : null,
+            }),
+            version: { increment: 1 },
+          },
+          select: TASK_SELECT,
+        });
+        return { task: toTask(row) };
+      },
+    );
   }
 }

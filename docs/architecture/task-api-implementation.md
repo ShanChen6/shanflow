@@ -10,7 +10,7 @@ Ngày: 2026-10-12. Phạm vi: chỉ local development theo [IA-001](../security/
 | --- | --- | --- |
 | 7.1 | Nền tảng backend: contracts, chính sách quyền, đồ thị trạng thái, bộ cấp `position`, `TaskStore` | Xong |
 | 7.2 | CRUD API: tạo, liệt kê/lọc, đọc, sửa metadata | Xong |
-| 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Chưa |
+| 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Đang làm — 7.3.1a (trạng thái) xong; còn xóa/khôi phục idempotent, 7.3.2, 7.3.3, 7.3.4 |
 | 7.4 | Sắp xếp và di chuyển: reorder, chuyển project/Inbox, rebalance | Chưa |
 | 7.5 | Giao diện quản lý Task | Chưa |
 | 7.6 | Tích hợp và sẵn sàng phát hành | Chưa |
@@ -87,6 +87,23 @@ Thứ tự lát: schema CRUD → tạo (mặc định) → tạo (đủ trườn
 
 **Kiểm thử:** contracts `task-crud.spec` (12 test); API unit `cursor.spec` (9); database `task-api.db-spec` (29 test: tạo, đọc, danh sách, sửa — gồm quyền theo vai trò, thu hồi quyền có hiệu lực ngay,
 cô lập tenant, xóa mềm/lưu trữ, tạo/sửa song song, giới hạn).
+
+## 7.3.1a — Chuyển trạng thái (TDD)
+
+`POST /workspaces/:w/tasks/:id/status` với `{ status, version }` (strict; `completedAt`/`position` không nhận từ client).
+
+- **Đồ thị** (`canTransition` ở contracts, áp dụng ở service): mọi chuyển đổi hợp lệ trừ `CANCELED → IN_PROGRESS/DONE` (→ 409 `INVALID_STATUS_TRANSITION`);
+  mở lại task đã hủy phải qua TODO. 10 cặp hợp lệ và 2 cặp bị cấm đều được test từng cặp.
+- **`completedAt`** (`completedAtAfter`, giờ lấy từ `Clock` của server): đặt khi vào DONE, xóa khi rời DONE (kể cả DONE→CANCELED vì hủy không phải hoàn thành),
+  hoàn thành lại sau khi mở lại nhận mốc mới.
+- **Idempotent:** yêu cầu đúng trạng thái task đang có là **no-op thành công** (200, trả trạng thái hiện tại, không đổi `version`, `position`, `completedAt`) và được
+  xét **trước** kiểm tra `version`, nên request thử lại với `version` cũ vẫn an toàn. Chỉ khi trạng thái thật sự đổi mới kiểm tra `version` (409 nếu cũ).
+- **Làn:** đổi trạng thái = sang làn mới của cùng project, nhận rank cuối làn (ADR-009), nhả rank cũ; làn khác không bị đụng. Hết chỗ rank → 409 `POSITION_CAPACITY_EXCEEDED` (rebalance ở 7.4).
+- Mọi thành viên ACTIVE đều đổi được; project lưu trữ đóng băng (409 `PROJECT_ARCHIVED`); khác workspace / đã xóa / id sai → 404.
+- **Cấu trúc:** phần mở đầu giao dịch chung (quyền + khóa workspace + task sống + project chưa lưu trữ) nằm ở `TaskMutationService.mutate`; `requireVersion` là guard
+  cho optimistic concurrency. `update()` của 7.2 cũng dùng lại (bộ test 7.2 giữ nguyên, vẫn xanh).
+
+**Kiểm thử:** contracts `task-status.spec` (2); database `task-status.db-spec` (28 test: lát, `completedAt`, no-op, đồ thị từng cặp, làn, 6 yêu cầu chuyển song song cùng làn, quyền, version, project lưu trữ, 401/404, body sai).
 
 ## Câu hỏi mở
 
