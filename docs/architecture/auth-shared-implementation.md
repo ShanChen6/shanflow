@@ -21,7 +21,7 @@ Biến môi trường mới (đã thêm vào `.env.example`): `JWT_ACCESS_SECRET
 `REFRESH_TOKEN_TTL_DAYS` (1–90, mặc định 30), `AUTH_COOKIE_SECURE` (production bắt buộc true),
 `AUTH_COOKIE_DOMAIN`, `WEB_ORIGIN` (origin thuần, https ở production).
 Schema auth **chưa** được nạp vào `AppModule`, vì vậy chưa yêu cầu `JWT_ACCESS_SECRET` khi khởi động;
-`AuthModule` sẽ nạp ở bước 4.
+`AuthModule` nạp schema này từ bước 3 (xem [register-implementation.md](register-implementation.md)).
 
 ## Dependency
 

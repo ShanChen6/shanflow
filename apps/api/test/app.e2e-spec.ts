@@ -14,6 +14,7 @@ describe('AppController (e2e)', () => {
     vi.stubEnv('NODE_ENV', 'test');
     vi.stubEnv('PORT', '3001');
     vi.stubEnv('DATABASE_URL', 'postgresql://shanflow_app@localhost/shanflow?schema=public');
+    vi.stubEnv('JWT_ACCESS_SECRET', 'e2e-test-secret-e2e-test-secret-0123456789');
     query.mockReset().mockResolvedValue([{ connected: 1 }]);
     transaction.mockReset().mockImplementation(async (callback: (tx: {
       $executeRaw: ReturnType<typeof vi.fn>;
