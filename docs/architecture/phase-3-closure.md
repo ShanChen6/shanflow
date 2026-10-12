@@ -27,7 +27,7 @@ trong đó bị coi là đã được chấp nhận rủi ro thay cho Project Ow
 
 Nền tảng: schema/migration [auth storage](auth-storage-implementation.md) và `add_oauth_and_one_time_tokens`, thành phần dùng chung
 [shared](auth-shared-implementation.md), package `@shanflow/contracts`, mailer, `SensitiveSessionGuard`, 8 migration tổng cộng.
-Tổng thay đổi so với `main`: 16 commit, ~200 file.
+Tổng thay đổi so với `main`: 17 commit, ~200 file.
 
 ## 3. Đối chiếu quyết định thiết kế
 
