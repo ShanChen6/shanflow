@@ -10,7 +10,7 @@ Ngày: 2026-10-12. Phạm vi: chỉ local development theo [IA-001](../security/
 | --- | --- | --- |
 | 7.1 | Nền tảng backend: contracts, chính sách quyền, đồ thị trạng thái, bộ cấp `position`, `TaskStore` | Xong |
 | 7.2 | CRUD API: tạo, liệt kê/lọc, đọc, sửa metadata | Xong |
-| 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Đang làm — 7.3.1a (trạng thái), 7.3.1b (xóa mềm) và 7.3.4 (khôi phục) xong; còn 7.3.2, 7.3.3 |
+| 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Đang làm — 7.3.1a (trạng thái), 7.3.1b (xóa mềm), 7.3.2 (ưu tiên và hạn chót) và 7.3.4 (khôi phục) xong; còn 7.3.3 (giao việc) |
 | 7.4 | Sắp xếp và di chuyển: reorder, chuyển project/Inbox, rebalance | Chưa |
 | 7.5 | Giao diện quản lý Task | Chưa |
 | 7.6 | Tích hợp và sẵn sàng phát hành | Chưa |
@@ -146,7 +146,26 @@ cô lập tenant, xóa mềm/lưu trữ, tạo/sửa song song, giới hạn).
 
 **Kiểm thử:** contracts `task-restore.spec` (5); database `task-restore.db-spec` (24).
 
+## 7.3.2 — Ưu tiên và hạn chót (TDD)
+
+Không có route mới: `priority` và `dueAt` đi qua `POST` (tạo) và `PATCH` (sửa, cần `version`) của 7.2. Giai đoạn này chốt và chứng minh hành vi, và bổ sung hai điểm còn thiếu.
+
+- **Ưu tiên:** `LOW | MEDIUM | HIGH | URGENT`, mặc định `MEDIUM`; giá trị khác (chữ thường, rỗng, `null`, số, mảng) → 400 và không đổi gì. Đổi được trên task đã DONE mà không đụng `status`/`completedAt`; mọi thành viên đều đổi được.
+- **Hạn chót (ADR-004):** thêm / đổi / xóa (`null`); bỏ qua trường thì giữ nguyên. Chấp nhận mốc **thời điểm có `Z` hoặc offset số**, lưu đúng thời điểm đó và **luôn trả UTC dạng `YYYY-MM-DDTHH:mm:ss.sssZ`**
+  (offset `+07:00`, `-05:00`, `+05:30`, `+12:45` đều quy về cùng một thời điểm; DST chỉ là offset). Độ chính xác dưới mili-giây bị **cắt** (không làm tròn sang mili-giây kế tiếp).
+  Hạn chót trong quá khứ hợp lệ (quá hạn là trạng thái bình thường).
+- **Giới hạn mới (`DUE_AT_MIN` … `DUE_AT_MAX`):** từ `1970-01-01T00:00:00.000Z` đến `9999-12-31T23:59:59.999Z`. Trước đây `0000-…`/năm 0001 lọt qua schema; ngày không tồn tại (`02-30`, `13-01`, giây 60, giờ 24) đã bị zod chặn
+  nên mọi giá trị không lưu được đều là **400, không bao giờ 500**. Ngày trần, giờ không múi, `2026-10-12 09:00:00Z`, số epoch đều bị từ chối (cả khi tạo lẫn sửa).
+- **Một định dạng ở mọi nơi:** tạo, đọc, danh sách, đổi trạng thái, xóa, thùng rác, khôi phục đều trả `dueAt`, `createdAt`, `updatedAt`, `completedAt`, `deletedAt` dạng UTC có mili-giây.
+- **PATCH không đổi gì = no-op idempotent (mới):** nếu mọi trường gửi lên đã bằng giá trị đang lưu (so sánh thời điểm, nên `+07:00` và `Z` cùng thời điểm là bằng nhau) thì trả 200 với task hiện tại, **không** tăng `version`/`updatedAt`
+  và bỏ qua kiểm tra `version` → gửi lại một lần sửa đã thành công là an toàn, người khác không bị xung đột oan; 6 yêu cầu giống hệt chạy song song đều 200, chỉ một lần đổi thật. Chỉ cần một trường khác biệt thì là thay đổi thật và `version` cũ bị 409.
+  Project đã lưu trữ vẫn chặn (409) kể cả khi no-op, vì task bị đóng băng.
+- Hàm thuần `detailChanges` tính phần khác biệt; `update()` còn lại là guard clause (không try/catch).
+
+**Kiểm thử:** contracts `due-at.spec` (8: chuẩn hóa, cắt mili-giây, DST, ngày không tồn tại, dải giá trị); database `task-priority-deadline.db-spec` (24).
+
 ## Câu hỏi mở
 
+- Lọc/sắp xếp danh sách theo hạn chót (quá hạn, sắp đến hạn) chưa có; thêm cùng giao diện ở 7.5 nếu cần.
 - Thùng rác chưa có phân trang con trỏ (tối đa 100 tombstone gần nhất); thêm khi có chính sách lưu giữ/dọn dẹp (ADR-003: chưa chốt thời hạn).
 - Sắp xếp danh sách đa làn: hiện theo `position, id`; thứ tự hiển thị theo làn do UI (7.5) lọc theo project + status.

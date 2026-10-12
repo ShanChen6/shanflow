@@ -26,13 +26,19 @@ export const taskDescriptionSchema = z
   .transform((value) => value.normalize('NFC').trim())
   .transform((value) => (value === '' ? null : value));
 
+/** The deadlines we accept: from the Unix epoch to the last millisecond of year 9999 (PostgreSQL has no year 0). */
+export const DUE_AT_MIN = '1970-01-01T00:00:00.000Z';
+export const DUE_AT_MAX = '9999-12-31T23:59:59.999Z';
+
 /**
  * A deadline is an instant (ADR-004): it must carry `Z` or a numeric offset, and is always answered in UTC.
  * A bare local date-time is rejected rather than guessed.
  */
 export const dueAtSchema = z.iso
   .datetime({ offset: true })
-  .transform((value) => new Date(value).toISOString());
+  .transform((value) => new Date(value).toISOString())
+  // Normalised ISO strings of equal width compare in time order.
+  .refine((value) => value >= DUE_AT_MIN && value <= DUE_AT_MAX);
 
 /** Position is a signed 64-bit rank carried as a decimal string; JSON numbers would lose precision. Clients never compute it. */
 export const positionSchema = z.string().regex(/^(0|[1-9]\d{0,18})$/);
