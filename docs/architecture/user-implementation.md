@@ -13,13 +13,13 @@ kế hoạch này; Workspace chuyển sang phase sau, các điều kiện ở đ
 | 4.1 | `GET /users/me` | **Xong** (bản ghi bên dưới) |
 | 4.2 | Cập nhật hồ sơ (backend) | **Xong** |
 | 4.3 | Giao diện hồ sơ | **Xong** |
-| 4.4 | Đổi mật khẩu | Chưa làm — xem câu hỏi mở |
+| 4.4 | Đổi mật khẩu | **Xong** (phần còn thiếu: email thông báo) |
 | 4.5 | Ảnh đại diện | Chưa làm — cần quyết định lưu trữ |
 | 4.6 | Cài đặt người dùng | Chưa làm — cần quyết định lưu trữ |
 
 ### Câu hỏi mở cho các bước sau
 
-- **4.4:** `POST /auth/password/change` (xác thực lại bằng mật khẩu hiện tại, thu hồi các thiết bị khác, kiểm tra phiên còn sống,
+- **4.4 (đã xử lý theo mặc định, chưa được Project Owner xác nhận):** `POST /auth/password/change` (xác thực lại bằng mật khẩu hiện tại, thu hồi các thiết bị khác, kiểm tra phiên còn sống,
   giới hạn 5/15 phút/người dùng) và biểu mẫu trên `/account` **đã có từ Phase 3**. Bước này nên là gì: (a) chuyển biểu mẫu sang trang
   hồ sơ mới, (b) bổ sung (ví dụ gửi email thông báo khi đổi mật khẩu, AUTH-R10), hay (c) bỏ vì đã đủ?
 - **4.5:** ảnh lưu ở đâu (hệ thống tệp local, object storage, hay chỉ URL)? Quyết định này kéo theo giới hạn kích thước/loại tệp,
@@ -99,4 +99,18 @@ dùng chữ cái đầu. Slice `user` dùng client xác thực qua `features/aut
 
 Kiểm chứng: web 141/141 (thêm 15), lint, typecheck, build đạt. Chạy thật bằng Chromium: đăng ký → đăng nhập → vào Profile từ thanh điều hướng → sửa tên có
 khoảng trắng thừa thành "Nguyễn Văn A" (ô nhập hiển thị giá trị đã chuẩn hóa) → tải lại vẫn giữ → ký tự ẩn bị từ chối ngay trên ô nhập.
+
+## 4.4 — Đổi mật khẩu
+
+Đổi mật khẩu đã hoàn chỉnh từ Phase 3 (endpoint, biểu mẫu trên `/account`, xác thực lại, thu hồi thiết bị khác, kiểm tra phiên còn sống, giới hạn tốc độ), nên
+bước này **không viết lại mà bổ sung phần còn thiếu** (AUTH-R10): **email thông báo** gửi cho chủ tài khoản sau khi mật khẩu đổi hoặc được đặt lại, để việc chiếm
+tài khoản không diễn ra âm thầm. Biểu mẫu giữ ở trang "Security" (`/account`); trang `/profile` dành cho thông tin cá nhân, hai trang liên kết qua thanh điều hướng.
+
+- `AuthMailService.sendPasswordChanged(to, 'change' | 'reset')`: văn bản thuần, **không chứa mật khẩu hay token**, có liên kết `/forgot-password` cho trường hợp "không phải tôi".
+- Gửi **sau khi commit và không await**: thất bại gửi mail không làm hỏng việc đổi mật khẩu và không làm lộ gì ra phản hồi. Yêu cầu bị từ chối (sai mật khẩu, trùng mật khẩu cũ,
+  token sai…) không gửi gì. Áp dụng cho cả `change` và `reset`.
+
+Nếu Project Owner muốn hướng khác (ví dụ chuyển biểu mẫu sang `/profile`), đó là thay đổi giao diện nhỏ và không ảnh hưởng backend.
+
+Kiểm chứng: API unit 206/206, db 219/219 (thêm 5: thông báo đúng người nhận, không chứa mật khẩu/token, mail lỗi vẫn đổi được, bị từ chối không gửi, reset gửi thông báo "was just reset"), lint, typecheck đạt.
 
