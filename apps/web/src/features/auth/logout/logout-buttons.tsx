@@ -34,7 +34,7 @@ export function LogoutButtons() {
           type="button"
           disabled={pending !== undefined}
           onClick={() => void signOut('device')}
-          className="rounded-md bg-slate-900 px-4 py-2 font-medium text-white disabled:opacity-60"
+          className="rounded-md bg-brand-500 px-4 py-2 font-medium text-brand-ink disabled:opacity-60"
         >
           {pending === 'device' ? 'Signing out…' : 'Sign out'}
         </button>

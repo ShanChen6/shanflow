@@ -5,7 +5,7 @@ import { PROJECT_COLORS, PROJECT_ICONS, type Project, type Workspace } from '@sh
 import { FormAlert, SubmitButton } from '@/shared/ui/form-controls';
 import { canManage, createProject, loadProjects, setArchived, updateProject, type ProjectOutcome, type StatusFilter } from './project.action';
 
-const selectClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-slate-900 focus:outline-none';
+const selectClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-brand-500 focus:outline-none';
 const inputClass = `${selectClass} aria-[invalid=true]:border-red-600`;
 const COLOR_STYLES: Record<string, string> = {
   slate: 'bg-slate-500',
@@ -268,7 +268,7 @@ export function ProjectsView() {
               setFilter(value);
               void load(value, workspace);
             }}
-            className={`rounded-md border px-3 py-1 ${filter === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300'}`}
+            className={`rounded-md border px-3 py-1 ${filter === value ? 'border-brand-500 bg-brand-500 text-brand-ink' : 'border-slate-300'}`}
           >
             {value === 'active' ? 'Active' : 'Archived'}
           </button>

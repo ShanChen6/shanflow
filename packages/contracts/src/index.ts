@@ -17,3 +17,6 @@ export * from './user/avatar.js';
 export * from './user/settings.js';
 export * from './workspace/workspace.js';
 export * from './project/project.js';
+export * from './task/task.js';
+export * from './task/task-crud.js';
+export * from './task/task-lifecycle.js';

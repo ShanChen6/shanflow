@@ -53,7 +53,7 @@ model UserSettings {
   userId    String          @id @map("user_id") @db.Uuid
   locale    String          @default("en") @db.Text
   timeZone  String          @default("UTC") @map("time_zone") @db.Text
-  theme     ThemePreference @default(SYSTEM)
+  theme     ThemePreference @default(DARK)
   updatedAt DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 

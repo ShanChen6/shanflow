@@ -3,14 +3,10 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { LOCALES, THEMES, type UserSettings } from '@shanflow/contracts';
 import { FormAlert } from '@/shared/ui/form-controls';
+import { applyTheme } from '@/shared/ui/theme';
 import { LOCALE_LABELS, THEME_LABELS, loadSettings, saveSettings, timeZoneOptions } from './settings.action';
 
-const selectClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-slate-900 focus:outline-none';
-
-/** Remembers the choice for the page; full dark styling is a later step, so only the browser's colour scheme follows it. */
-function applyTheme(theme: UserSettings['theme']) {
-  document.documentElement.style.colorScheme = theme === 'system' ? '' : theme;
-}
+const selectClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-brand-500 focus:outline-none';
 
 export function SettingsView() {
   const [settings, setSettings] = useState<UserSettings>();
