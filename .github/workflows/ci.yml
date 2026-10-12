@@ -1,0 +1,104 @@
+name: CI
+
+# Runs on every pull request into develop/main and on pushes to them, so develop is a real gate before main.
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+# Least privilege: the workflow only reads the repository.
+permissions:
+  contents: read
+
+# A newer push to the same pull request makes the older run pointless.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Prisma validates the URL's shape (role and database names) even when it never connects.
+      DIRECT_DATABASE_URL: postgresql://shanflow_migrator:placeholder@127.0.0.1:5432/shanflow?schema=public
+      JWT_ACCESS_SECRET: ci-only-signing-secret-ci-only-signing-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install (also builds @shanflow/contracts via prepare)
+        run: pnpm install --frozen-lockfile
+      - name: Generate Prisma Client
+        run: pnpm --filter api db:generate
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit tests
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+      - name: Dependency audit (fails on critical)
+        run: pnpm audit --audit-level=critical
+      # The full report stays visible but does not fail the run: SEC-02 (braces) is a known High with no
+      # patched release (see docs/architecture/phase-3-closure.md). It is reported, never suppressed.
+      - name: Dependency audit (full report, informational)
+        continue-on-error: true
+        run: pnpm audit
+
+  database:
+    name: Migrations and PostgreSQL tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        # Same image as compose.yaml.
+        image: postgres:18.6-bookworm
+        env:
+          POSTGRES_USER: shanflow
+          POSTGRES_PASSWORD: ci-bootstrap-password
+          POSTGRES_DB: shanflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shanflow -d shanflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: ci-bootstrap-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Provision roles, shadow database and .env
+        run: scripts/ci/setup-database.sh
+      - name: Generate Prisma Client
+        run: pnpm --filter api db:generate
+      - name: Apply migrations to the empty database
+        run: pnpm --filter api db:migrate:deploy
+      - name: Migration status
+        run: pnpm --filter api db:migrate:status
+      - name: Schema matches the migrations (no drift)
+        working-directory: apps/api
+        run: pnpm exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+      - name: Migrations replay cleanly on the shadow database
+        working-directory: apps/api
+        run: |
+          set -a; . ../../.env; set +a
+          pnpm exec prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --shadow-database-url "$SHADOW_DATABASE_URL" --exit-code
+      - name: Database integration tests
+        run: pnpm --filter api test:db
+      - name: HTTP e2e tests
+        run: pnpm --filter api test:e2e
