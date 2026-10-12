@@ -15,6 +15,7 @@
     "start:prod": "node dist/main.js",
     "lint": "oxlint --type-aware src/ test/ scripts/ prisma.config.ts",
     "test": "vitest run",
+    "test:db": "vitest run --config ./vitest.config.db.ts",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
