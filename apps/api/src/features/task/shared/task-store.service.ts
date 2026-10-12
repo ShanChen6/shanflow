@@ -108,13 +108,13 @@ export class TaskStore {
     await this.requireEditableProject(tx, task.workspaceId, task.projectId);
   }
 
-  /** An assignee must be an ACTIVE member with an ACTIVE account of this workspace (the FK alone allows inactive ones). */
-  async requireActiveAssignee(
+  /** Whether the user is an ACTIVE member with an ACTIVE account of this workspace (the FK alone allows inactive ones). */
+  async isActiveMember(
     tx: Tx | PrismaService,
     workspaceId: string,
     userId: string,
-  ): Promise<void> {
-    if (!isUuid(userId)) throw new InvalidAssigneeError();
+  ): Promise<boolean> {
+    if (!isUuid(userId)) return false;
     const member = await tx.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -124,7 +124,16 @@ export class TaskStore {
       },
       select: { id: true },
     });
-    if (!member) throw new InvalidAssigneeError();
+    return member !== null;
+  }
+
+  async requireActiveAssignee(
+    tx: Tx | PrismaService,
+    workspaceId: string,
+    userId: string,
+  ): Promise<void> {
+    if (!(await this.isActiveMember(tx, workspaceId, userId)))
+      throw new InvalidAssigneeError();
   }
 
   /** Highest live rank of a lane, or null for an empty lane. Deleted tasks do not hold a rank. */

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   Param,
   Post,
@@ -14,8 +15,13 @@ import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   changeTaskStatusRequestSchema,
   deleteTaskQuerySchema,
+  listTrashQuerySchema,
+  restoreTaskRequestSchema,
   type ChangeTaskStatusRequest,
   type DeleteTaskQuery,
+  type ListTrashQuery,
+  type RestoreTaskRequest,
+  type TrashResponse,
   type TaskResponse,
 } from '@shanflow/contracts';
 import type { Response } from 'express';
@@ -78,5 +84,41 @@ export class LifecycleController {
   ): Promise<TaskResponse> {
     noStore(response);
     return this.lifecycle.remove(principal, workspaceId, taskId, query);
+  }
+
+  @Post('restore')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @writeLimit
+  restore(
+    @CurrentPrincipal() principal: Principal,
+    @Param('workspaceId') workspaceId: string,
+    @Param('taskId') taskId: string,
+    @Body(new ZodValidationPipe(restoreTaskRequestSchema))
+    body: RestoreTaskRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<TaskResponse> {
+    noStore(response);
+    return this.lifecycle.restore(principal, workspaceId, taskId, body);
+  }
+}
+
+/** The trash is its own path, so no list filter can ever mix tombstones with live tasks. */
+@Controller('workspaces/:workspaceId/task-trash')
+@UseFilters(ProblemDetailsFilter)
+@SkipThrottle({ 'login-email': true })
+export class TrashController {
+  constructor(private readonly lifecycle: LifecycleHandlers) {}
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  list(
+    @CurrentPrincipal() principal: Principal,
+    @Param('workspaceId') workspaceId: string,
+    @Query(new ZodValidationPipe(listTrashQuerySchema)) query: ListTrashQuery,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<TrashResponse> {
+    noStore(response);
+    return this.lifecycle.listTrash(principal, workspaceId, query);
   }
 }

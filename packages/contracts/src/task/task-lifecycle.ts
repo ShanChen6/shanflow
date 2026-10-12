@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { TASK_STATUSES } from './task.js';
+import { TASK_STATUSES, taskSchema } from './task.js';
+import { TASK_LIST_DEFAULT_LIMIT, TASK_LIST_MAX_LIMIT } from './task-crud.js';
 
 /**
  * Moving a task to a status. `completedAt` and the new rank are decided by the server, so they cannot be sent.
@@ -23,3 +24,24 @@ export const deleteTaskQuerySchema = z
   .strict();
 
 export type DeleteTaskQuery = z.infer<typeof deleteTaskQuerySchema>;
+
+/**
+ * Restoring a deleted task. Only the version of the tombstone is sent: where the task goes (its own project or Inbox,
+ * the end of its lane), and what happens to its assignee, are decided by the server.
+ */
+export const restoreTaskRequestSchema = z
+  .object({ version: z.number().int().min(1) })
+  .strict();
+
+/** The trash lists tombstones, most recently deleted first. Nothing selects live tasks here. */
+export const listTrashQuerySchema = z
+  .object({ limit: z.coerce.number().int().min(1).max(TASK_LIST_MAX_LIMIT) })
+  .partial()
+  .strict()
+  .transform((value) => ({ limit: value.limit ?? TASK_LIST_DEFAULT_LIMIT }));
+
+export const trashResponseSchema = z.object({ tasks: z.array(taskSchema) });
+
+export type RestoreTaskRequest = z.infer<typeof restoreTaskRequestSchema>;
+export type ListTrashQuery = z.infer<typeof listTrashQuerySchema>;
+export type TrashResponse = z.infer<typeof trashResponseSchema>;

@@ -10,7 +10,7 @@ Ngày: 2026-10-12. Phạm vi: chỉ local development theo [IA-001](../security/
 | --- | --- | --- |
 | 7.1 | Nền tảng backend: contracts, chính sách quyền, đồ thị trạng thái, bộ cấp `position`, `TaskStore` | Xong |
 | 7.2 | CRUD API: tạo, liệt kê/lọc, đọc, sửa metadata | Xong |
-| 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Đang làm — 7.3.1a (trạng thái) và 7.3.1b (xóa mềm) xong; còn khôi phục (7.3.4), 7.3.2, 7.3.3 |
+| 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Đang làm — 7.3.1a (trạng thái), 7.3.1b (xóa mềm) và 7.3.4 (khôi phục) xong; còn 7.3.2, 7.3.3 |
 | 7.4 | Sắp xếp và di chuyển: reorder, chuyển project/Inbox, rebalance | Chưa |
 | 7.5 | Giao diện quản lý Task | Chưa |
 | 7.6 | Tích hợp và sẵn sàng phát hành | Chưa |
@@ -125,7 +125,28 @@ cô lập tenant, xóa mềm/lưu trữ, tạo/sửa song song, giới hạn).
 
 **Kiểm thử:** contracts `task-delete.spec` (2); database `task-delete.db-spec` (17).
 
+## 7.3.4 — Thùng rác và khôi phục (TDD)
+
+| Route | Quyền | Ghi chú |
+| --- | --- | --- |
+| `GET /workspaces/:w/task-trash?limit=` | thành viên | tombstone mới xóa nhất trước; OWNER/ADMIN thấy tất cả, MEMBER chỉ task do mình tạo; mặc định 50, tối đa 100 |
+| `POST /workspaces/:w/tasks/:id/restore` `{ version }` | `canDeleteOrRestore` | 200 `{ task }` sống |
+
+- **Thùng rác là đường riêng** (`/task-trash`), không phải bộ lọc của danh sách: không tham số nào trộn tombstone với task sống (`?status`, `?includeLive` → 400).
+- **Quyền & tàng hình:** cùng `canDeleteOrRestore` với xóa (guard `requireTrashPermission` dùng chung). Task sống mà không có quyền → 403; task **đã xóa** mà không có quyền → 404 (được giao việc không cho
+  quyền vào thùng rác). Người ngoài workspace / membership INACTIVE / id sai / workspace khác → 404; thu hồi quyền có hiệu lực ngay.
+- **Hiệu lực khi khôi phục:** người gọi phải là thành viên ACTIVE (workspace không có lưu trữ ở MVP); project của task phải **chưa lưu trữ** (409 `PROJECT_ARCHIVED`, task vẫn ở thùng rác, khôi phục project rồi thử lại được);
+  Inbox không phụ thuộc project. `version` của tombstone phải đúng (409 nếu cũ).
+- **Rank & va chạm:** rank cũ **không bao giờ được dùng lại**. Task luôn vào **cuối làn** (cùng project/Inbox + cùng status) với rank mới (ADR-003/009), nên rank cũ đã bị người khác chiếm không gây va chạm
+  (test: rank 1024 bị task khác dùng → task khôi phục nhận 2048); 4 tombstone cùng giữ rank 1024 khôi phục đồng thời nhận 1024/2048/3072/4096, không lỗi. Khóa workspace tuần tự hóa các thao tác ghi.
+- **Giữ nguyên:** trạng thái, `completedAt`, hạn chót, mô tả, ưu tiên, người tạo, project. **Người được giao** được kiểm lại: không còn là thành viên ACTIVE (rời, bị vô hiệu hóa hoặc tài khoản bị khóa) → xóa (`assigneeId = null`), còn hợp lệ → giữ.
+  Người tạo đã rời workspace không cản trở (FK còn nguyên, quản lý vẫn khôi phục được).
+- **Idempotent:** khôi phục task đã sống → 200 trả đúng task, không đổi `version`/`position`, bỏ qua kiểm tra `version` (cùng nguyên tắc với xóa và đổi trạng thái); 6 yêu cầu song song chỉ khôi phục một lần (`version` = 3).
+- **Cấu trúc:** `TaskStore.isActiveMember` (boolean) dùng cho cả kiểm tra người được giao khi tạo lẫn khi khôi phục.
+
+**Kiểm thử:** contracts `task-restore.spec` (5); database `task-restore.db-spec` (24).
+
 ## Câu hỏi mở
 
-- Khôi phục (7.3.4): xử lý va chạm rank, project đã lưu trữ, người được giao không còn hợp lệ — thiết kế khi làm 7.3.4 (cùng quyền `canDeleteOrRestore`).
+- Thùng rác chưa có phân trang con trỏ (tối đa 100 tombstone gần nhất); thêm khi có chính sách lưu giữ/dọn dẹp (ADR-003: chưa chốt thời hạn).
 - Sắp xếp danh sách đa làn: hiện theo `position, id`; thứ tự hiển thị theo làn do UI (7.5) lọc theo project + status.
