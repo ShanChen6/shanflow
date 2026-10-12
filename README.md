@@ -114,8 +114,9 @@ Root scripts chạy kiểm tra/build cho cả hai workspace. Có thể dùng
 Sau khi build, chạy frontend bằng `pnpm --filter web start` và backend bằng
 `pnpm --filter api start:prod`, trên cùng port development tương ứng.
 
-Không commit secret, `.env*` (ngoại trừ `.env.example`), dependencies hay build output. `packages/` hiện
-không có package hoặc abstraction dùng chung.
+Không commit secret, `.env*` (ngoại trừ `.env.example`), dependencies hay build output. `packages/contracts`
+(`@shanflow/contracts`) chứa schema request/response dùng chung giữa API và web; `pnpm install` tự build nó
+(`prepare`), chạy lại `pnpm --filter @shanflow/contracts build` sau khi sửa.
 
 ## PostgreSQL development
 
@@ -654,3 +655,38 @@ late rejection/recovery và response an toàn. HTTP e2e mock database để ki�
 200/503 mà không cần Docker. Smoke test riêng dùng PostgreSQL thật đã xác nhận
 health endpoints, server hủy truy vấn đọc chậm bằng local timeout, readiness
 phục hồi, timeout không leak sang lần dùng connection tiếp theo và schema không đổi.
+
+## Authentication (Phase 3)
+
+Đăng ký, đăng nhập (email/mật khẩu và Google), làm mới/thu hồi phiên, xác minh email, quên/đặt lại/đổi mật khẩu.
+Thiết kế và bản ghi từng bước: [auth-architecture.md](docs/architecture/auth-architecture.md); đóng phase:
+[phase-3-closure.md](docs/architecture/phase-3-closure.md).
+
+Cấu hình thêm trong `.env` (xem `.env.example`): `JWT_ACCESS_SECRET` là **bắt buộc** (≥ 32 ký tự ngẫu nhiên, ví dụ
+`openssl rand -base64 48`); `NEXT_PUBLIC_API_URL` cho web. Email mặc định in link ra log API (`MAIL_TRANSPORT=console`,
+chỉ dùng local). Google sign-in tắt cho tới khi đặt đủ `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`.
+
+Kiểm thử (cần PostgreSQL local đã provision cho bộ database):
+
+```bash
+pnpm test                       # contracts, API unit, web
+pnpm --filter api test:db       # API + PostgreSQL thật (kể cả Google với provider giả lập)
+pnpm --filter api test:e2e
+```
+
+Trang: `/register`, `/login`, `/forgot-password`, `/reset-password`, `/verify-email`, `/account`.
+Luồng trình duyệt chưa có kiểm thử tự động trong repo; đã được chạy thủ công (xem các bản ghi triển khai).
+
+### CI
+
+`.github/workflows/ci.yml` chạy trên mọi pull request vào `develop`/`main` và mọi push vào hai nhánh này:
+
+- `static`: cài đặt đóng băng lockfile, generate Prisma Client, lint, typecheck, unit test, build, `pnpm audit` (lỗi nếu có
+  mức critical; báo cáo đầy đủ chỉ để tham khảo vì SEC-02 còn mở và không bị che giấu).
+- `database`: PostgreSQL 18.6 (cùng image với `compose.yaml`), dựng roles/shadow bằng `scripts/ci/setup-database.sh`
+  (dùng chính `scripts/db/provision-*.sql`), áp dụng migration lên database trống, kiểm tra không lệch schema và migration
+  replay được trên shadow database, rồi chạy test database và e2e.
+
+`scripts/ci/setup-database.sh` chỉ dành cho database trống/dùng một lần: từ chối host không phải local, từ chối ghi đè `.env`
+ngoài CI và từ chối chạy khi roles đã tồn tại. Nên bật branch protection để yêu cầu cả hai job đạt trước khi merge.
+
