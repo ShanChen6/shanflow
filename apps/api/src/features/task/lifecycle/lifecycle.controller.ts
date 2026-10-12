@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Put,
   Query,
   Res,
   UseFilters,
@@ -13,10 +14,12 @@ import {
 } from '@nestjs/common';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
+  assignTaskRequestSchema,
   changeTaskStatusRequestSchema,
   deleteTaskQuerySchema,
   listTrashQuerySchema,
   restoreTaskRequestSchema,
+  type AssignTaskRequest,
   type ChangeTaskStatusRequest,
   type DeleteTaskQuery,
   type ListTrashQuery,
@@ -69,6 +72,22 @@ export class LifecycleController {
   ): Promise<TaskResponse> {
     noStore(response);
     return this.lifecycle.changeStatus(principal, workspaceId, taskId, body);
+  }
+
+  @Put('assignee')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @writeLimit
+  assign(
+    @CurrentPrincipal() principal: Principal,
+    @Param('workspaceId') workspaceId: string,
+    @Param('taskId') taskId: string,
+    @Body(new ZodValidationPipe(assignTaskRequestSchema))
+    body: AssignTaskRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<TaskResponse> {
+    noStore(response);
+    return this.lifecycle.assign(principal, workspaceId, taskId, body);
   }
 
   @Delete()

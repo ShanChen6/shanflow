@@ -45,3 +45,17 @@ export const trashResponseSchema = z.object({ tasks: z.array(taskSchema) });
 export type RestoreTaskRequest = z.infer<typeof restoreTaskRequestSchema>;
 export type ListTrashQuery = z.infer<typeof listTrashQuerySchema>;
 export type TrashResponse = z.infer<typeof trashResponseSchema>;
+
+/**
+ * Assigning a task: a user id to give it to someone (or change hands), `null` to clear. The field is required, so an
+ * omitted value is never mistaken for "clear". Whether the caller may do it, and whether the user is an active member,
+ * is decided by the server.
+ */
+export const assignTaskRequestSchema = z
+  .object({
+    assigneeId: z.uuid().nullable(),
+    version: z.number().int().min(1),
+  })
+  .strict();
+
+export type AssignTaskRequest = z.infer<typeof assignTaskRequestSchema>;

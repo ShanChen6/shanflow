@@ -10,7 +10,7 @@ Ngày: 2026-10-12. Phạm vi: chỉ local development theo [IA-001](../security/
 | --- | --- | --- |
 | 7.1 | Nền tảng backend: contracts, chính sách quyền, đồ thị trạng thái, bộ cấp `position`, `TaskStore` | Xong |
 | 7.2 | CRUD API: tạo, liệt kê/lọc, đọc, sửa metadata | Xong |
-| 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Đang làm — 7.3.1a (trạng thái), 7.3.1b (xóa mềm), 7.3.2 (ưu tiên và hạn chót) và 7.3.4 (khôi phục) xong; còn 7.3.3 (giao việc) |
+| 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Xong — 7.3.1a (trạng thái), 7.3.1b (xóa mềm), 7.3.2 (ưu tiên và hạn chót), 7.3.3 (giao việc) và 7.3.4 (khôi phục) xong — **7.3 hoàn tất** |
 | 7.4 | Sắp xếp và di chuyển: reorder, chuyển project/Inbox, rebalance | Chưa |
 | 7.5 | Giao diện quản lý Task | Chưa |
 | 7.6 | Tích hợp và sẵn sàng phát hành | Chưa |
@@ -163,6 +163,25 @@ Không có route mới: `priority` và `dueAt` đi qua `POST` (tạo) và `PATCH
 - Hàm thuần `detailChanges` tính phần khác biệt; `update()` còn lại là guard clause (không try/catch).
 
 **Kiểm thử:** contracts `due-at.spec` (8: chuẩn hóa, cắt mili-giây, DST, ngày không tồn tại, dải giá trị); database `task-priority-deadline.db-spec` (24).
+
+## 7.3.3 — Giao việc (TDD)
+
+`PUT /workspaces/:w/tasks/:id/assignee` với `{ assigneeId: uuid | null, version }` (strict). Một route cho giao, đổi người và hủy giao (`null`); `assigneeId` **bắt buộc** nên thiếu trường không bao giờ bị hiểu là "hủy giao".
+`assigneeId` không còn nhận ở `POST`/`PATCH` ngoài đường này (PATCH vẫn từ chối; tạo task vẫn cho giao lúc tạo theo cùng chính sách).
+
+- **Quyền** (`canChangeAssignee`, ma trận): OWNER/ADMIN giao cho bất kỳ thành viên hợp lệ, đổi người, hủy giao của bất kỳ ai. MEMBER chỉ **tự nhận** task chưa có người, hoặc **bỏ nhận** task của chính mình;
+  không giao cho người khác, không nhận task của người khác, không chuyển task của mình cho người khác, không hủy giao của người khác (đều 403, không đổi gì). Người tạo task không có thêm quyền.
+- **Người được giao hợp lệ:** phải là thành viên **ACTIVE** của đúng workspace với tài khoản **ACTIVE** (FK một mình cho phép cả INACTIVE) → 422 `INVALID_ASSIGNEE` (INACTIVE, tài khoản bị khóa, người ngoài, id lạ). Kích hoạt lại thành viên thì giao lại được. Hủy giao không đòi hỏi điều này.
+- **Idempotent:** giao đúng người đang giữ (hoặc hủy giao task chưa có ai) → 200, không đổi `version`/`updatedAt`, bỏ qua kiểm tra `version`; 6 yêu cầu giống hệt song song đều 200, chỉ một lần đổi thật. Giao người khác với `version` cũ → 409.
+  Thứ tự guard: no-op → quyền (403) → `version` (409) → thành viên hợp lệ (422).
+- **Thành viên bị vô hiệu hóa/rời đi:** task còn gán cho họ vẫn đọc/sửa được; quản lý luôn gỡ hoặc giao lại được; bản thân người rời đi mất mọi quyền (404, kể cả không thể tự bỏ nhận).
+  Khôi phục task từ thùng rác tự xóa người được giao không còn hợp lệ (7.3.4).
+- **Dọn dẹp khi rời workspace — `TaskAssignmentCleanup.unassignAll(tx, workspaceId, userId)`** (ADR-005/ma trận "administrative membership cleanup"): gỡ gán **mọi** task của người đó, gồm task đã xóa, đã hoàn thành và thuộc project đã lưu trữ
+  (ngoại lệ quản trị duy nhất với project đóng băng, vì chỉ đổi người chịu trách nhiệm); tăng `version`/`updatedAt` của đúng các dòng đó, không đụng trạng thái, `completedAt`, `deletedAt`, rank; không đụng task của người khác, task chưa giao hay workspace khác.
+  Tự khóa workspace; **phải gọi trong cùng giao dịch và trước** thay đổi membership (test: rollback chung, commit chung); chạy lại không làm gì (trả 0). Hiện **chưa có API quản lý thành viên** (MVP chỉ PERSONAL), nên dịch vụ được xuất từ `TaskModule` để API đó dùng sau.
+- Bất biến còn lại: project lưu trữ chặn giao việc (409), task đã xóa / workspace khác / người ngoài / id sai → 404, 401 khi chưa đăng nhập.
+
+**Kiểm thử:** contracts `task-assign.spec` (3); database `task-assign.db-spec` (23), `task-assignment-cleanup.db-spec` (6).
 
 ## Câu hỏi mở
 

@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import {
+  canChangeAssignee,
   canDeleteOrRestore,
   WORKSPACE_MANAGER_ROLES,
   type TaskActor,
   canTransition,
   completedAtAfter,
+  type AssignTaskRequest,
   type ChangeTaskStatusRequest,
   type DeleteTaskQuery,
   type ListTrashQuery,
@@ -205,5 +207,49 @@ export class LifecycleHandlers {
       select: TASK_SELECT,
     });
     return { tasks: rows.map(toTask) };
+  }
+
+  /**
+   * Gives the task to someone, hands it on, or clears it (`assigneeId: null`). Idempotent: if the task already has
+   * that assignee nothing changes. The matrix decides who may do what; a new assignee must be an active member with an
+   * active account (clearing never needs that, so a task held by someone who has left can always be freed).
+   */
+  assign(
+    principal: Principal,
+    workspaceId: string,
+    taskId: string,
+    request: AssignTaskRequest,
+  ): Promise<TaskResponse> {
+    return this.mutations.mutate(
+      principal,
+      workspaceId,
+      taskId,
+      async ({ tx, role, task }) => {
+        if (task.assigneeId === request.assigneeId)
+          return { task: toTask(task) };
+        if (
+          !canChangeAssignee(
+            { role, userId: principal.userId },
+            task.assigneeId,
+            request.assigneeId,
+          )
+        )
+          throw new ForbiddenError();
+        requireVersion(task, request.version);
+        if (request.assigneeId !== null)
+          await this.store.requireActiveAssignee(
+            tx,
+            workspaceId,
+            request.assigneeId,
+          );
+
+        const row = await tx.task.update({
+          where: { id: taskId },
+          data: { assigneeId: request.assigneeId, version: { increment: 1 } },
+          select: TASK_SELECT,
+        });
+        return { task: toTask(row) };
+      },
+    );
   }
 }
