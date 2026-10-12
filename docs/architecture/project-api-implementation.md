@@ -55,3 +55,13 @@ Màu và biểu tượng chọn từ allowlist (biểu tượng hiển thị b�
 
 - Bộ icon thật và bảng màu theo giao diện (hiện chỉ là giá trị allowlist + nhãn).
 - Phân trang khi nới giới hạn 200 project/workspace.
+
+## Kết quả kiểm thử
+
+- Contracts: `project.spec` (chuẩn hóa tên/mô tả, allowlist màu/icon, trường thừa, bộ lọc).
+- API database (`project-api.db-spec`, 10 test): OWNER/ADMIN tạo được, MEMBER 403 ở mọi thao tác ghi nhưng đọc được; người ngoài 404 ở mọi route;
+  project của workspace khác không truy cập/sửa/lưu trữ được qua id workspace của mình; id sai định dạng 404; 400 cho dữ liệu sai và trường lạ;
+  sửa một phần và xóa trường bằng `null`; lưu trữ/khôi phục idempotent (không ghi lại `archivedAt`), lọc danh sách, project lưu trữ chỉ đọc (409);
+  giới hạn 200 kể cả tạo song song (5 yêu cầu đồng thời còn đúng 2 chỗ); thu hồi role/khóa tài khoản có hiệu lực ngay; personal workspace dùng được.
+- Web: actions (tải, tạo, sửa, lưu trữ/khôi phục, ánh xạ lỗi), `ProjectsView` (tạo, lưu trữ rời danh sách đang hoạt động, bộ lọc đã lưu trữ,
+  ẩn điều khiển với MEMBER, lỗi tải), điều hướng.
