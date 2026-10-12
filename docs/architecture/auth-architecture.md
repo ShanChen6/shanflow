@@ -364,13 +364,14 @@ Checklist chuẩn bị:
 | 5 | `me` + `JwtAuthGuard` | Guard dùng được cho workspace |
 | 6 | `refresh` (rotation, family lock, reuse) + client single-flight | Test đồng thời + multi-tab |
 | 7 | `logout`, `logout-all` | Revoke family/all |
-| 8 | Mở rộng: Google OAuth, verify email, forgot/change password | Mỗi cái một slice + review riêng |
+| 8 | Mở rộng: Google OAuth, verify email, forgot/reset/change password | Hoàn thành |
 
 **Tiến độ (2026-10-12):** bước 0–7 đã triển khai trên `feat/auth`; bản ghi từng bước:
 [storage](auth-storage-implementation.md), [shared](auth-shared-implementation.md),
 [register](register-implementation.md), [login](login-implementation.md),
 [me + guard](me-guard-implementation.md), [refresh](refresh-implementation.md),
-[logout](logout-implementation.md). Bước 8 (Google, verify email, forgot/change password) chưa làm.
+[logout](logout-implementation.md), [account flows](account-flows-implementation.md) (bước 8: Google, xác minh email, quên/đặt
+lại/đổi mật khẩu). **Phase 3 đã đóng**: xem [phase-3-closure.md](phase-3-closure.md).
 
 Mỗi bước là một PR nhỏ, tự kiểm chứng được (lint, typecheck, test, build). Workspace
 API và Task API vẫn **NOT READY** cho đến khi authorization service (CDB-002..004) xong;
