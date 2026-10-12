@@ -91,7 +91,7 @@ là thủ công, **không nằm trong repo**.
 | AUTH-R06 | SMTP chưa gửi qua máy chủ thật; SPF/DKIM/DMARC và khả năng giao thư chưa kiểm | Trung bình | Staging | Vận hành |
 | AUTH-R07 | Google chưa chạy với Google thật (cần client ID/secret, consent screen, redirect URI đã đăng ký); chưa có hủy liên kết và đổi email | Trung bình | Staging | Smoke test staging, backlog |
 | AUTH-R08 | Chưa có Content-Security-Policy cho web (cần nonce cho script nội tuyến của Next); access token nằm trong bộ nhớ nên XSS vẫn là rủi ro chính | Cao | Production | Hardening web |
-| AUTH-R09 | Không có CI và không có kiểm thử trình duyệt tự động trong repo; luồng trình duyệt chỉ được chạy thủ công | Trung bình | Staging | Database/CI phase |
+| AUTH-R09 | Không có kiểm thử trình duyệt tự động trong repo; luồng trình duyệt chỉ được chạy thủ công. (CI cho lint/typecheck/test/build/database đã được thêm sau khi đóng phase qua `.github/workflows/ci.yml`; xem README, mục CI) | Trung bình | Staging | Database/CI phase |
 | AUTH-R10 | Chưa có khóa tài khoản sau nhiều lần sai, MFA, danh sách/thu hồi từng thiết bị, thông báo email khi đổi mật khẩu | Thấp–trung bình | Không | Backlog |
 | AUTH-R11 | `register` trả 409 làm lộ email đã đăng ký (D10 chấp nhận); `forgot` có chênh thời gian nhỏ | Thấp | Không | Theo dõi |
 | CDB-002/003/004 | Phân quyền theo workspace/vai trò, bootstrap/chuyển quyền sở hữu workspace, giao thức Task (từ [audit](core-database-audit.md)) vẫn mở | Cao | **Workspace API, Task API** | Phase 4 |
