@@ -58,6 +58,18 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO shanflow_
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC, shanflow_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO shanflow_app;
 
+-- CDB-001: Prisma migration bookkeeping is migrator-only. The blanket grant
+-- above (and the default privileges below, which apply when Prisma first
+-- creates the table) would otherwise give runtime CRUD on it. The same revoke
+-- is repeated by a migration so fresh databases are correct without a rerun.
+DO $$
+BEGIN
+  IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+    REVOKE ALL ON TABLE public._prisma_migrations FROM PUBLIC, shanflow_app;
+  END IF;
+END
+$$;
+
 -- Remove both global and schema-local defaults, then grant the exact runtime
 -- privileges. Defaults apply to objects created AS shanflow_migrator.
 ALTER DEFAULT PRIVILEGES FOR ROLE shanflow_migrator

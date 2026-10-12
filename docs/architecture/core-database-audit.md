@@ -378,13 +378,13 @@ printed or added to this report.
 
 | Risk | Severity | Status | Release effect | Owner / next phase |
 | --- | --- | --- | --- | --- |
-| CDB-001 runtime migration-history ACL | MEDIUM | OPEN | Block staging until fixed and retested. | Database security remediation |
+| CDB-001 runtime migration-history ACL | MEDIUM | REMEDIATED (see section 16) | Fixed by migration `20261012010000` and provisioning SQL; negative test added. | Database security remediation |
 | CDB-002 missing authorization/RLS | HIGH | OPEN / expected pre-API | Blocks every business API from exposure. | Auth + API services |
 | CDB-003 incomplete owner enforcement | HIGH | OPEN / accepted baseline | Blocks Workspace API exposure. | WorkspaceService |
 | CDB-004 task policy/concurrency service absent | HIGH | OPEN | Blocks Task API exposure. | TaskService |
 | CDB-005 initial migration transaction boundary | LOW | ACCEPTED HISTORY / monitor | Does not block local work; preserve history. | Migration workflow |
-| SEC-01 vulnerable deepmerge-ts | HIGH | OPEN | Blocks staging/production approval. | Dependency security review |
-| SEC-02 vulnerable braces | HIGH | OPEN | Blocks staging/production approval. | Dependency security review |
+| SEC-01 vulnerable deepmerge-ts | HIGH | REMEDIATED, pending Project Owner closure (see section 16) | `deepmerge-ts@8.0.2` via pnpm override; `pnpm audit` no longer reports it. | Dependency security review |
+| SEC-02 vulnerable braces | HIGH | OPEN, no patched release (see section 16) | Blocks staging/production approval. | Dependency security review |
 | No RLS | HIGH if service scoping fails | DESIGN CHOICE / future ADR | Requires complete application authorization and tests. | API architecture |
 | No automated full migration replay | MEDIUM | OPEN | Add before shared environment promotion. | Database CI future phase |
 
@@ -419,3 +419,46 @@ printed or added to this report.
 The recommended next step is a Project Owner review of this audit, followed by the
 dedicated Auth modeling/implementation phase for local development. Workspace and
 Task APIs should remain gated until their listed service controls and tests exist.
+
+## 16. Remediation Addendum (CDB-001, SEC-01, SEC-02)
+
+Applied on 2026-10-12 against a local PostgreSQL 16 cluster provisioned with the
+repository role/shadow SQL (the Compose image is PostgreSQL 18; behavior of the
+changed statements is version-independent).
+
+### CDB-001 — remediated
+
+- New migration `20261012010000_revoke_runtime_migration_history_access` revokes all
+  privileges on `public._prisma_migrations` from `PUBLIC` and `shanflow_app`. It is
+  guarded by a `pg_roles` check so environments without the managed role replay it.
+- `scripts/db/provision-roles.sql` repeats the revoke when the table exists, so a
+  re-provision does not restore the grant. Default privileges still grant CRUD on
+  tables the migrator creates later; the migration is what removes it for the
+  Prisma-created history table on a fresh database.
+- Reproduced before the fix: ACL `shanflow_app=arwd`. After: only the owner
+  (`shanflow_migrator=arwdDxt`) remains.
+- New test `test/runtime-permissions.db-spec.ts` asserts the runtime role holds no
+  privilege on the table, is denied SELECT/DELETE, and keeps CRUD on the five core
+  tables.
+
+### SEC-01 — remediated by override, needs Project Owner closure
+
+- `pnpm-workspace.yaml` overrides `@prisma/config@7.10.0>deepmerge-ts` to `8.0.2`
+  (patched range `>=8.0.0`). This is a major bump of a transitive dependency that
+  RA-001 did not pre-approve, so closing SEC-01 requires an explicit decision.
+- Compatibility: `@prisma/config` only imports the named export `deepmerge`, which
+  8.0.2 still provides. `prisma validate`, `migrate deploy`/`status`, the database
+  suite (58/58), unit (52/52) and e2e (4/4) tests, lint, typecheck and build pass.
+- The override is not an upstream-supported combination. Remove it once Prisma ships
+  a release depending on a patched `deepmerge-ts`.
+- `pnpm audit` now reports 1 High (SEC-02) instead of 2.
+
+### SEC-02 — still open
+
+- `braces` latest published release is 3.0.3 and no `>=3.0.4` exists on the registry
+  (re-checked today); `micromatch` latest is 4.0.8. The advisory's patched version
+  is not installable, so no override or upgrade can remove the chain
+  `eslint-config-next > @next/eslint-plugin-next > fast-glob > micromatch > braces`.
+- No change made. It remains High/Open, tooling-only, with trusted inputs. Re-check
+  the registry and `eslint-config-next` releases at the RA-001 review deadline
+  (2026-11-11).
