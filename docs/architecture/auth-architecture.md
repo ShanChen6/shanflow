@@ -1,6 +1,8 @@
 # Shanflow — Phase 3 Authentication Architecture (Vertical Slice)
 
-Trạng thái: **Proposal — chờ Project Owner duyệt**, chưa có code, schema hay migration.
+Trạng thái: **Accepted (2026-10-12)** — Project Owner chấp nhận toàn bộ đề xuất mặc định
+D1–D13 và các điểm ở 4.1/4.2 (không auto-login; SUSPENDED gộp vào `INVALID_CREDENTIALS`;
+`packages/contracts`; gọi API trực tiếp từ web). Đây là quyết định, chưa phải ADR riêng.
 Nền tảng: [ADR-001](data-decisions.md) (email/password + Google OAuth) và
 [ADR-010](data-decisions.md) (User + PasswordCredential + OAuthAccount + RefreshSession).
 Phạm vi Phase 3 MVP: **register, login, refresh, logout, me**. Google OAuth, email
@@ -354,7 +356,7 @@ Checklist chuẩn bị:
 
 | Bước | Slice / hạng mục | Điều kiện hoàn thành |
 | --- | --- | --- |
-| 0 | Chốt quyết định, cập nhật tài liệu này thành Accepted | Project Owner duyệt |
+| 0 | Chốt quyết định, cập nhật tài liệu này thành Accepted | Hoàn thành |
 | 1 | Schema + migration + test quyền runtime | `db:migrate:status` sạch, test:db đạt |
 | 2 | `shared/` (hasher, token, clock, filter) + cấu hình | Unit test đạt |
 | 3 | `register` (BE → FE) | DB + E2E + form hoạt động |
