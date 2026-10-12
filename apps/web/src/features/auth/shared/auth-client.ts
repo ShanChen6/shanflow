@@ -84,9 +84,14 @@ export function authedGetJson<T>(path: string, schema: ZodType<T>): Promise<Auth
   return withAccessToken((accessToken) => requestJson({ method: 'GET', path, schema, accessToken }));
 }
 
-/** Authenticated POST that answers 204 (logout-all). */
-export function authedPostNoContent(path: string): Promise<AuthedResult<void>> {
-  return withAccessToken((accessToken) => requestNoContent({ method: 'POST', path, accessToken }));
+/** Authenticated POST that answers with no body (logout-all, change password, resend verification). */
+export function authedPostNoContent(path: string, body?: unknown): Promise<AuthedResult<void>> {
+  return withAccessToken((accessToken) => requestNoContent({ method: 'POST', path, body, accessToken }));
+}
+
+/** Authenticated POST that answers with a validated JSON body. */
+export function authedPostJson<T>(path: string, body: unknown, schema: ZodType<T>): Promise<AuthedResult<T>> {
+  return withAccessToken((accessToken) => requestJson({ method: 'POST', path, body, schema, accessToken }));
 }
 
 /** Ends this device's session: the refresh cookie authenticates the request. */

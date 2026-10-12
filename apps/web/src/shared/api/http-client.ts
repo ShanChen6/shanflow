@@ -62,9 +62,10 @@ export function postJson<T>(path: string, body: unknown, schema: ZodType<T>, opt
 }
 
 /** For endpoints that answer 204 No Content on success (logout). Failures are problem+json as usual. */
-export async function requestNoContent(options: Omit<RequestOptions<never>, 'schema' | 'body'>): Promise<ApiResult<void>> {
-  const { method, path, accessToken, keepalive } = options;
+export async function requestNoContent(options: Omit<RequestOptions<never>, 'schema'>): Promise<ApiResult<void>> {
+  const { method, path, body, accessToken, keepalive } = options;
   const headers: Record<string, string> = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   if (method === 'POST') headers[CSRF_HEADER_NAME] = CSRF_HEADER_VALUE;
 
@@ -74,6 +75,7 @@ export async function requestNoContent(options: Omit<RequestOptions<never>, 'sch
       method,
       credentials: 'include',
       headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
       ...(keepalive ? { keepalive: true } : {}),
     });
   } catch {

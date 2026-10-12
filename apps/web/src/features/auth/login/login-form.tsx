@@ -83,6 +83,11 @@ export function LoginForm() {
         {pending ? 'Signing in…' : 'Sign in'}
       </button>
       <p className="text-sm text-slate-600">
+        <a href="/forgot-password" className="font-medium underline">
+          Forgot your password?
+        </a>
+      </p>
+      <p className="text-sm text-slate-600">
         No account yet?{' '}
         <a href="/register" className="font-medium underline">
           Create one
