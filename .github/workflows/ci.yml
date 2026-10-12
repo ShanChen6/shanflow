@@ -93,11 +93,11 @@ jobs:
       - name: Schema matches the migrations (no drift)
         working-directory: apps/api
         run: pnpm exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+      # Prisma 7 takes the shadow database from prisma.config.ts (SHADOW_DATABASE_URL in the .env written above);
+      # `migrate diff` has no --shadow-database-url flag.
       - name: Migrations replay cleanly on the shadow database
         working-directory: apps/api
-        run: |
-          set -a; . ../../.env; set +a
-          pnpm exec prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --shadow-database-url "$SHADOW_DATABASE_URL" --exit-code
+        run: pnpm exec prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code
       - name: Database integration tests
         run: pnpm --filter api test:db
       - name: HTTP e2e tests
