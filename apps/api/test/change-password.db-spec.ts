@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { PrismaService } from '../src/database/prisma.service.js';
+import type { InMemoryMailer } from '../src/shared/mail/mailer.js';
 import {
   CSRF_HEADERS,
   PASSWORD,
@@ -14,6 +15,7 @@ const NEW_PASSWORD = 'an entirely different passphrase';
 
 describe('POST /auth/password/change (database)', () => {
   let app: INestApplication;
+  let mailer: InMemoryMailer;
   let prisma: PrismaService;
   const userIds: string[] = [];
 
@@ -33,12 +35,13 @@ describe('POST /auth/password/change (database)', () => {
   };
 
   beforeAll(async () => {
-    ({ app } = await createTestApp());
+    ({ app, mailer } = await createTestApp());
     prisma = app.get(PrismaService);
   });
 
   afterEach(async () => {
     await deleteUsers(prisma, userIds);
+    mailer.outbox.length = 0;
   });
 
   afterAll(async () => {
@@ -65,6 +68,57 @@ describe('POST /auth/password/change (database)', () => {
       .get('/auth/me')
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
+  });
+
+  it('tells the owner by email that the password changed, without any secret in it', async () => {
+    const user = await createUser(prisma, userIds, { label: 'notice' });
+    const accessToken = (await login(user.email).expect(200)).body
+      .accessToken as string;
+    await change(accessToken, {
+      currentPassword: PASSWORD,
+      newPassword: NEW_PASSWORD,
+    }).expect(204);
+    const notice = mailer.last(user.email);
+    expect(notice?.subject).toBe('Your Shanflow password was changed');
+    expect(notice?.text).toContain('http://localhost:3000/forgot-password');
+    expect(notice?.text).not.toContain(PASSWORD);
+    expect(notice?.text).not.toContain(NEW_PASSWORD);
+    expect(notice?.text).not.toMatch(/token=/);
+    expect(
+      mailer.outbox.filter((message) => message.to === user.email),
+    ).toHaveLength(1);
+  });
+
+  it('still changes the password when the notice cannot be sent', async () => {
+    const user = await createUser(prisma, userIds, { label: 'notice-down' });
+    const accessToken = (await login(user.email).expect(200)).body
+      .accessToken as string;
+    const original = mailer.send.bind(mailer);
+    mailer.send = () => Promise.reject(new Error('smtp down'));
+    try {
+      await change(accessToken, {
+        currentPassword: PASSWORD,
+        newPassword: NEW_PASSWORD,
+      }).expect(204);
+    } finally {
+      mailer.send = original;
+    }
+    await login(user.email, NEW_PASSWORD).expect(200);
+  });
+
+  it('sends no notice when the change is refused', async () => {
+    const user = await createUser(prisma, userIds, { label: 'no-notice' });
+    const accessToken = (await login(user.email).expect(200)).body
+      .accessToken as string;
+    await change(accessToken, {
+      currentPassword: 'wrong guess here',
+      newPassword: NEW_PASSWORD,
+    }).expect(400);
+    await change(accessToken, {
+      currentPassword: PASSWORD,
+      newPassword: 'short',
+    }).expect(400);
+    expect(mailer.last(user.email)).toBeUndefined();
   });
 
   it('refuses a wrong current password and changes nothing', async () => {

@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { config } from 'dotenv';
 import { fileURLToPath } from 'node:url';
 import type { INestApplication, ModuleMetadata } from '@nestjs/common';
@@ -69,6 +72,11 @@ export async function createTestApp(
   options: { throttle?: boolean; imports?: ModuleMetadata['imports'] } = {},
 ): Promise<TestApp> {
   assertLocalTestDatabase();
+  // Avatars of tests go to a throwaway directory, never to the developer's real one.
+  process.env.AVATAR_STORAGE_DIR ||= mkdtempSync(
+    join(tmpdir(), 'shanflow-avatars-'),
+  );
+  process.env.API_PUBLIC_URL = 'http://localhost:3001';
   const mailer = new InMemoryMailer();
   let builder = Test.createTestingModule({
     imports: [AppModule, ...(options.imports ?? [])],

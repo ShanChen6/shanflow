@@ -9,6 +9,7 @@ import {
   WrongPasswordError,
 } from '../shared/auth.errors.js';
 import type { Principal } from '../shared/principal.js';
+import { AuthMailService } from '../shared/auth-mail.service.js';
 import { RefreshSessionStore } from '../shared/refresh-session.store.js';
 import type { ChangePasswordRequest } from './change-password.schema.js';
 
@@ -19,6 +20,7 @@ export class ChangePasswordHandler {
     private readonly hasher: PasswordHasher,
     private readonly sessions: RefreshSessionStore,
     private readonly clock: Clock,
+    private readonly mail: AuthMailService,
   ) {}
 
   /**
@@ -32,6 +34,7 @@ export class ChangePasswordHandler {
     const user = await this.prisma.user.findUnique({
       where: { id: principal.userId },
       select: {
+        email: true,
         accountStatus: true,
         passwordCredential: { select: { passwordHash: true } },
       },
@@ -57,5 +60,7 @@ export class ChangePasswordHandler {
         tx,
       });
     });
+    // After the commit, and not awaited: the change stands even if the notice cannot be sent.
+    this.mail.sendPasswordChanged(user.email, 'change');
   }
 }

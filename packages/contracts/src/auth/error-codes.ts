@@ -11,6 +11,9 @@ export const AUTH_ERROR_CODES = {
   passwordNotSet: 'PASSWORD_NOT_SET',
   oauthNotConfigured: 'OAUTH_NOT_CONFIGURED',
   alreadyLinked: 'ALREADY_LINKED',
+  payloadTooLarge: 'PAYLOAD_TOO_LARGE',
+  unsupportedMediaType: 'UNSUPPORTED_MEDIA_TYPE',
+  invalidImage: 'INVALID_IMAGE',
   tooManyRequests: 'TOO_MANY_REQUESTS',
   internalError: 'INTERNAL_ERROR',
 } as const;

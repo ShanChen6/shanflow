@@ -26,3 +26,6 @@ __pycache__/
 *.pyc
 # Regenerated with pnpm --filter api db:generate
 /apps/api/src/generated/prisma/
+
+# Local uploads (avatars) in development
+.data/
