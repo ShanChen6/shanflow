@@ -68,7 +68,7 @@ function ProfileNameField({ initial, error, disabled }: { initial: string; error
         disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? 'displayName-error' : undefined}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-slate-900 focus:outline-none aria-[invalid=true]:border-red-600"
+        className="w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-brand-500 focus:outline-none aria-[invalid=true]:border-red-600"
       />
       {error ? (
         <p id="displayName-error" className="mt-1 text-sm text-red-700">

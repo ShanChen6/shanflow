@@ -18,7 +18,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-3 px-6">
         <p role="alert">Could not reach the server.</p>
-        <button type="button" onClick={status.retry} className="rounded-md bg-slate-900 px-4 py-2 font-medium text-white">
+        <button type="button" onClick={status.retry} className="rounded-md bg-brand-500 px-4 py-2 font-medium text-brand-ink">
           Try again
         </button>
       </main>

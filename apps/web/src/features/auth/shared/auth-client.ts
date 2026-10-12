@@ -99,6 +99,11 @@ export function authedPutBlob<T>(path: string, rawBody: Blob, schema: ZodType<T>
   return withAccessToken((accessToken) => requestJson({ method: 'PUT', path, rawBody, schema, accessToken }));
 }
 
+/** Authenticated PUT with a JSON body that answers with a validated JSON body. */
+export function authedPutJson<T>(path: string, body: unknown, schema: ZodType<T>): Promise<AuthedResult<T>> {
+  return withAccessToken((accessToken) => requestJson({ method: 'PUT', path, body, schema, accessToken }));
+}
+
 /** Authenticated DELETE that answers with a validated JSON body. */
 export function authedDeleteJson<T>(path: string, schema: ZodType<T>): Promise<AuthedResult<T>> {
   return withAccessToken((accessToken) => requestJson({ method: 'DELETE', path, schema, accessToken }));

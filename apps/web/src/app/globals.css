@@ -1,8 +1,67 @@
 @import "tailwindcss";
 
+/*
+ * Dark first. The app was written against Tailwind's light slate scale; instead of touching every component, the scales
+ * are remapped here so the existing utilities (slate-*, red-*, …) resolve to a dark theme built on the Shanflow brand:
+ * deep navy surfaces (from the navy of the wordmark) and the yellow → orange → red of the mark for accents.
+ */
+@theme {
+  --color-brand-400: #fdb022;
+  --color-brand-500: #fb7a3a;
+  --color-brand-600: #ff4d3f;
+  --color-brand-ink: #061b45;
+
+  /* "white" surfaces (selects, cards) are the raised navy surface */
+  --color-white: #0e1a3a;
+
+  /* neutrals, inverted: 50 = subtle surface … 900 = primary text */
+  --color-slate-50: #0e1a3a;
+  --color-slate-100: #14224a;
+  --color-slate-200: #223158;
+  --color-slate-300: #31436f;
+  --color-slate-400: #5b6c96;
+  --color-slate-500: #8e9bbd;
+  --color-slate-600: #aab5d1;
+  --color-slate-700: #c6cee3;
+  --color-slate-800: #dde3f1;
+  --color-slate-900: #f2f5fb;
+  --color-slate-950: #fafbff;
+
+  /* status colours: dark tints for backgrounds, light tones for text */
+  --color-red-50: #3a141c;
+  --color-red-100: #4a1a24;
+  --color-red-500: #ff5a4d;
+  --color-red-600: #ff6f63;
+  --color-red-700: #ff8f86;
+  --color-red-800: #ffaaa3;
+  --color-green-50: #0f2f24;
+  --color-green-500: #34d399;
+  --color-green-900: #8ef0c4;
+  --color-amber-100: #3d2b0c;
+  --color-amber-500: #fdb022;
+  --color-amber-700: #fdc95e;
+  --color-amber-900: #fde59a;
+  --color-blue-100: #132a55;
+  --color-blue-500: #4f8cff;
+  --color-blue-800: #a3c4ff;
+}
+
+:root {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
-  background: #f8fafc;
-  color: #0f172a;
+  background: #070f26;
+  color: #e8ecf8;
   font-family: Arial, Helvetica, sans-serif;
+}
+
+::placeholder {
+  color: #8e9bbd;
+}
+
+:focus-visible {
+  outline: 2px solid #fb7a3a;
+  outline-offset: 2px;
 }
