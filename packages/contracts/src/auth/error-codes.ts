@@ -2,6 +2,7 @@
 export const AUTH_ERROR_CODES = {
   validationFailed: 'VALIDATION_FAILED',
   emailAlreadyRegistered: 'EMAIL_ALREADY_REGISTERED',
+  invalidCredentials: 'INVALID_CREDENTIALS',
   tooManyRequests: 'TOO_MANY_REQUESTS',
   internalError: 'INTERNAL_ERROR',
 } as const;

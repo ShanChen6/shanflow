@@ -38,6 +38,7 @@ describe('RegisterForm', () => {
     expect((pending as HTMLButtonElement).disabled).toBe(true);
     finish({ ok: true, status: 201, json: async () => ({ user }) });
     expect(await screen.findByText(/ann@example.invalid is registered/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Continue to sign in' }).getAttribute('href')).toBe('/login');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

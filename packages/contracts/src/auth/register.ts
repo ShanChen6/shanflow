@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { authUserSchema } from './user.js';
 
 export const PASSWORD_MIN_LENGTH = 12;
 // Matches the API hasher's upper bound; protects against oversized-input abuse.
@@ -14,14 +15,7 @@ export const registerRequestSchema = z.object({
   displayName: z.string().trim().min(1).max(DISPLAY_NAME_MAX_LENGTH),
 });
 
-export const registerResponseSchema = z.object({
-  user: z.object({
-    id: z.uuid(),
-    email: z.string(),
-    displayName: z.string(),
-    emailVerified: z.boolean(),
-  }),
-});
+export const registerResponseSchema = z.object({ user: authUserSchema });
 
 export type RegisterRequest = z.infer<typeof registerRequestSchema>;
 export type RegisterResponse = z.infer<typeof registerResponseSchema>;

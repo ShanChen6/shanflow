@@ -8,7 +8,12 @@ import type { RegisterRequest, RegisterResponse } from './register.schema.js';
 const UNIQUE_VIOLATION = 'P2002';
 
 function isUniqueViolation(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === UNIQUE_VIOLATION;
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === UNIQUE_VIOLATION
+  );
 }
 
 @Injectable()
@@ -30,7 +35,12 @@ export class RegisterHandler {
           displayName: request.displayName,
           passwordCredential: { create: { passwordHash } },
         },
-        select: { id: true, email: true, displayName: true, emailVerifiedAt: true },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          emailVerifiedAt: true,
+        },
       });
       return {
         user: {

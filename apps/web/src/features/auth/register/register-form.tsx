@@ -51,8 +51,11 @@ export function RegisterForm() {
       <div role="status" className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold">Account created</h1>
         <p className="text-slate-600">
-          {registeredEmail} is registered. Sign-in will be available soon.
+          {registeredEmail} is registered.
         </p>
+        <a href="/login" className="font-medium underline">
+          Continue to sign in
+        </a>
       </div>
     );
   }
