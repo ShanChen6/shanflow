@@ -12,7 +12,7 @@ kế hoạch này; Workspace chuyển sang phase sau, các điều kiện ở đ
 | --- | --- | --- |
 | 4.1 | `GET /users/me` | **Xong** (bản ghi bên dưới) |
 | 4.2 | Cập nhật hồ sơ (backend) | **Xong** |
-| 4.3 | Giao diện hồ sơ | Chưa làm |
+| 4.3 | Giao diện hồ sơ | **Xong** |
 | 4.4 | Đổi mật khẩu | Chưa làm — xem câu hỏi mở |
 | 4.5 | Ảnh đại diện | Chưa làm — cần quyết định lưu trữ |
 | 4.6 | Cài đặt người dùng | Chưa làm — cần quyết định lưu trữ |
@@ -80,4 +80,23 @@ CORS cho phép thêm `PATCH`, `PUT`, `DELETE` (cho các bước sau).
 Kiểm chứng: contracts 51/51, API unit 204/204, db 214/214 (thêm 17): đổi tên + `updatedAt` tăng + GET thấy giá trị mới, NFC, 8 kiểu đầu vào sai,
 5 trường không được phép bị từ chối và không đổi gì, chỉ sửa chính mình, 401, tài khoản khóa, 6 yêu cầu đồng thời, đăng ký từ chối tên có
 ký tự giả mạo, giới hạn 20/phút theo người dùng và không ảnh hưởng người khác.
+
+## 4.3 — Giao diện hồ sơ
+
+Cấu trúc trang cho người đã đăng nhập (đều nằm trong `app/(app)/`, bọc bởi `RequireAuth` và thanh điều hướng `AppNav`):
+
+| Trang | Nội dung |
+| --- | --- |
+| `/profile` | Thông tin cá nhân: ảnh/chữ cái đầu, tên, email + trạng thái xác minh, ngày tham gia, sửa tên (4.3), ảnh đại diện (4.5) |
+| `/account` ("Security") | Bảo mật: xác minh email, đổi mật khẩu, liên kết Google, đăng xuất (Phase 3) |
+| `/settings` | Tùy chọn (4.6) |
+
+Web (`features/user/profile/`): `profile.action.ts` (tải hồ sơ, kiểm tra tên bằng đúng `displayNameSchema` của API trước khi gửi, ánh xạ lỗi),
+`use-profile.ts`, `profile-form.tsx`, `profile-view.tsx`. Sau khi lưu, hiển thị **giá trị đã chuẩn hóa mà server trả về** (không phải chuỗi người dùng
+gõ) và cập nhật tên trong session bộ nhớ mà không động tới token. Avatar chỉ là `<img>` khi URL là https, có `referrerpolicy="no-referrer"`; không có thì
+dùng chữ cái đầu. Slice `user` dùng client xác thực qua `features/auth/shared/auth-client` (API công khai của feature auth), không import slice khác.
+`http-client` hỗ trợ thêm `PATCH`/`PUT`/`DELETE`.
+
+Kiểm chứng: web 141/141 (thêm 15), lint, typecheck, build đạt. Chạy thật bằng Chromium: đăng ký → đăng nhập → vào Profile từ thanh điều hướng → sửa tên có
+khoảng trắng thừa thành "Nguyễn Văn A" (ô nhập hiển thị giá trị đã chuẩn hóa) → tải lại vẫn giữ → ký tự ẩn bị từ chối ngay trên ô nhập.
 

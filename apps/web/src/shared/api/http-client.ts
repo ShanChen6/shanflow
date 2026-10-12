@@ -9,7 +9,7 @@ export type ApiResult<T> =
   | { ok: false; kind: 'unavailable' };
 
 interface RequestOptions<T> {
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   path: string;
   schema: ZodType<T>;
   body?: unknown;

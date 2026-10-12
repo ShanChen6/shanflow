@@ -31,6 +31,13 @@ export function setSession(session: Session): void {
   notify();
 }
 
+/** Keeps the in-memory profile in step after the user edits it, without touching the tokens. */
+export function updateSessionUser(user: Partial<AuthUser>): void {
+  if (current === null) return;
+  current = { ...current, user: { ...current.user, ...user } };
+  notify();
+}
+
 export function clearSession(): void {
   if (current === null) return;
   current = null;

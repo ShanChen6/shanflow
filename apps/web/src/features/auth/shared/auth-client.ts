@@ -89,6 +89,11 @@ export function authedPostNoContent(path: string, body?: unknown): Promise<Authe
   return withAccessToken((accessToken) => requestNoContent({ method: 'POST', path, body, accessToken }));
 }
 
+/** Authenticated PATCH that answers with a validated JSON body. */
+export function authedPatchJson<T>(path: string, body: unknown, schema: ZodType<T>): Promise<AuthedResult<T>> {
+  return withAccessToken((accessToken) => requestJson({ method: 'PATCH', path, body, schema, accessToken }));
+}
+
 /** Authenticated POST that answers with a validated JSON body. */
 export function authedPostJson<T>(path: string, body: unknown, schema: ZodType<T>): Promise<AuthedResult<T>> {
   return withAccessToken((accessToken) => requestJson({ method: 'POST', path, body, schema, accessToken }));
