@@ -1,6 +1,6 @@
 'use client';
 
-// VARIANT A — "Board": one column per status, cards you can drag (or step up/down with the buttons). Best for seeing flow.
+// Board view: one column per status, cards you can drag (or step up/down with the buttons). Best for seeing flow.
 import { TASK_STATUSES, type Task, type TaskStatus } from '@shanflow/contracts';
 import { useState, type DragEvent } from 'react';
 import type { Board } from '../../application/use-board';
@@ -85,7 +85,7 @@ function Column({ board, status }: { board: Board; status: TaskStatus }) {
   );
 }
 
-export function KanbanBoard({ board }: { board: Board }) {
+export function BoardView({ board }: { board: Board }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {TASK_STATUSES.map((status) => (

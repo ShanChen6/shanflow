@@ -1,6 +1,6 @@
 'use client';
 
-// VARIANT C — "Focus": a master/detail layout ordered by what needs attention, not by status. Open tasks sorted by
+// Focus view: a master/detail layout ordered by what needs attention, not by status. Open tasks sorted by
 // overdue → priority → deadline on the left, the selected task with one big action on the right. Best for "what next?".
 import type { Task } from '@shanflow/contracts';
 import { useState } from 'react';

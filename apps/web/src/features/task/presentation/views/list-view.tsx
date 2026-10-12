@@ -1,6 +1,6 @@
 'use client';
 
-// VARIANT B — "List": one dense list grouped by status, a checkbox to complete, actions revealed on the row.
+// List view: one dense list grouped by status, a checkbox to complete, actions revealed on the row.
 // Best for scanning many tasks quickly and for small screens. No drag and drop.
 import { TASK_STATUSES, type Task } from '@shanflow/contracts';
 import { useState } from 'react';
@@ -68,7 +68,7 @@ function Row({ board, task }: { board: Board; task: Task }) {
   );
 }
 
-export function GroupedList({ board }: { board: Board }) {
+export function ListView({ board }: { board: Board }) {
   return (
     <div className="flex flex-col gap-4">
       {TASK_STATUSES.map((status) => (

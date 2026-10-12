@@ -1,26 +1,36 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useBoard } from '../application/use-board';
 import { httpTaskGateway } from '../infrastructure/http-task-gateway';
 import { NewTaskForm, Notice, ScopeSelect, TrashPanel, button } from './parts';
-import { PrototypeSwitcher } from './prototype-switcher';
-import { FocusView } from './variants/focus-view';
-import { GroupedList } from './variants/grouped-list';
-import { KanbanBoard } from './variants/kanban-board';
+import { VIEWS, VIEW_LABELS, useViewMode, type View } from './view-mode';
+import { BoardView } from './views/board-view';
+import { FocusView } from './views/focus-view';
+import { ListView } from './views/list-view';
 
-const VARIANTS = [
-  { id: 'A', label: 'Board' },
-  { id: 'B', label: 'List' },
-  { id: 'C', label: 'Focus' },
-];
+function ViewSwitch({ view, onChange }: { view: View; onChange: (view: View) => void }) {
+  return (
+    <div role="group" aria-label="View" className="flex overflow-hidden rounded-md border border-slate-300 text-sm">
+      {VIEWS.map((candidate) => (
+        <button
+          key={candidate}
+          type="button"
+          aria-pressed={candidate === view}
+          onClick={() => onChange(candidate)}
+          className={`px-3 py-1 ${candidate === view ? 'bg-brand-500 font-medium text-brand-ink' : 'hover:bg-slate-100'}`}
+        >
+          {VIEW_LABELS[candidate]}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-/** The tasks screen: loads through the HTTP gateway, then hands the same `board` to whichever layout is chosen. */
+/** The tasks screen: loads through the HTTP gateway, then shows the same `board` in the layout the user picked. */
 export function TasksPage() {
   const board = useBoard(httpTaskGateway);
-  const requested = useSearchParams().get('variant') ?? 'A';
-  const variant = VARIANTS.some((candidate) => candidate.id === requested) ? requested : 'A';
+  const [view, setView] = useViewMode();
   const [showTrash, setShowTrash] = useState(false);
 
   if (board.phase === 'failed') {
@@ -32,11 +42,12 @@ export function TasksPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 pb-20">
+    <div className="flex flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Tasks</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <ScopeSelect board={board} />
+          {showTrash ? null : <ViewSwitch view={view} onChange={setView} />}
           <button
             type="button"
             className={button}
@@ -45,7 +56,7 @@ export function TasksPage() {
               if (!showTrash) void board.openTrash();
             }}
           >
-            {showTrash ? 'Board' : 'Trash'}
+            {showTrash ? 'Back to tasks' : 'Trash'}
           </button>
         </div>
       </header>
@@ -59,16 +70,15 @@ export function TasksPage() {
             <p role="status" className="text-slate-600">
               Loading…
             </p>
-          ) : variant === 'B' ? (
-            <GroupedList board={board} />
-          ) : variant === 'C' ? (
+          ) : view === 'list' ? (
+            <ListView board={board} />
+          ) : view === 'focus' ? (
             <FocusView board={board} />
           ) : (
-            <KanbanBoard board={board} />
+            <BoardView board={board} />
           )}
         </>
       )}
-      <PrototypeSwitcher variants={VARIANTS} current={variant} />
     </div>
   );
 }
