@@ -17,6 +17,8 @@ export class MeHandler {
         displayName: true,
         accountStatus: true,
         emailVerifiedAt: true,
+        passwordCredential: { select: { userId: true } },
+        oauthAccounts: { select: { provider: true } },
       },
     });
     // A valid token can outlive its account: removed or suspended users are treated as signed out.
@@ -28,6 +30,10 @@ export class MeHandler {
         email: user.email,
         displayName: user.displayName,
         emailVerified: user.emailVerifiedAt !== null,
+      },
+      security: {
+        hasPassword: user.passwordCredential !== null,
+        linkedProviders: user.oauthAccounts.map(() => 'google' as const),
       },
     };
   }

@@ -8,6 +8,8 @@ const user = {
   displayName: 'Ann',
   accountStatus: 'ACTIVE',
   emailVerifiedAt: null,
+  passwordCredential: { userId: 'user-1' },
+  oauthAccounts: [],
 };
 
 function handlerWith(found: unknown) {
@@ -28,6 +30,7 @@ describe('MeHandler', () => {
         displayName: 'Ann',
         emailVerified: false,
       },
+      security: { hasPassword: true, linkedProviders: [] },
     });
     expect(findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'user-1' } }),
@@ -48,5 +51,17 @@ describe('MeHandler', () => {
         principal,
       ),
     ).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+
+  it('reports sign-in methods: no password for OAuth-only accounts and linked providers', async () => {
+    const { handler } = handlerWith({
+      ...user,
+      passwordCredential: null,
+      oauthAccounts: [{ provider: 'GOOGLE' }],
+    });
+    expect((await handler.execute(principal)).security).toEqual({
+      hasPassword: false,
+      linkedProviders: ['google'],
+    });
   });
 });

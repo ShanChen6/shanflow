@@ -6,3 +6,7 @@ export * from './auth/login.js';
 export * from './auth/me.js';
 export * from './auth/csrf.js';
 export * from './auth/refresh.js';
+export * from './auth/password.js';
+export * from './auth/one-time-token.js';
+export * from './auth/password-flows.js';
+export * from './auth/oauth.js';

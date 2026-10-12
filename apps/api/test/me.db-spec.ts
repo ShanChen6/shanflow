@@ -164,6 +164,7 @@ describe('GET /auth/me (database)', () => {
         displayName: 'Me Test',
         emailVerified: false,
       },
+      security: { hasPassword: true, linkedProviders: [] },
     });
     expect(response.headers['cache-control']).toBe('no-store');
     const text = JSON.stringify(response.body);

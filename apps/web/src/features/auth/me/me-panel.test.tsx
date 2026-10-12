@@ -4,6 +4,7 @@ import { clearSession, setSession } from '../shared/session-store';
 import { MePanel } from './me-panel';
 
 const user = { id: '0b1f7a4e-3c1d-4a6e-9b6a-2f1c8d0e5a11', email: 'ann@example.invalid', displayName: 'Ann', emailVerified: false };
+const security = { hasPassword: true, linkedProviders: [] };
 const reply = (status: number, body: unknown) => ({ ok: status < 400, status, json: async () => body });
 
 afterEach(() => {
@@ -14,7 +15,7 @@ afterEach(() => {
 describe('MePanel', () => {
   it('shows the profile from the server with the verification state', async () => {
     setSession({ accessToken: 't', expiresAt: Date.now() + 600_000, user: { ...user, displayName: 'Stale Name' } });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(reply(200, { user })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(reply(200, { user, security })));
     render(<MePanel />);
     expect(screen.getByText('Stale Name')).toBeTruthy();
     expect(await screen.findByText('Ann')).toBeTruthy();

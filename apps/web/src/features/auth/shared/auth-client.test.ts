@@ -3,6 +3,7 @@ import { authedGetJson, fetchMe, refreshSession } from './auth-client';
 import { clearSession, getSession, setSession, type Session } from './session-store';
 
 const user = { id: '0b1f7a4e-3c1d-4a6e-9b6a-2f1c8d0e5a11', email: 'ann@example.invalid', displayName: 'Ann', emailVerified: false };
+const security = { hasPassword: true, linkedProviders: [] };
 const refreshBody = { accessToken: 'jwt-new', tokenType: 'Bearer', expiresIn: 900, user };
 const unauthenticated = { type: 't', title: 'x', status: 401, code: 'UNAUTHENTICATED' };
 
@@ -77,9 +78,9 @@ describe('refreshSession', () => {
 describe('authedGetJson', () => {
   it('sends the in-memory token without refreshing while it is fresh', async () => {
     setSession(stale());
-    fetchMock.mockResolvedValue(reply(200, { user }));
+    fetchMock.mockResolvedValue(reply(200, { user, security }));
     const result = await fetchMe();
-    expect(result).toEqual({ ok: true, data: { user } });
+    expect(result).toEqual({ ok: true, data: { user, security } });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://localhost:3001/auth/me');
@@ -88,13 +89,13 @@ describe('authedGetJson', () => {
   });
 
   it('refreshes first when there is no session or the token is about to expire', async () => {
-    fetchMock.mockResolvedValueOnce(reply(200, refreshBody)).mockResolvedValueOnce(reply(200, { user }));
+    fetchMock.mockResolvedValueOnce(reply(200, refreshBody)).mockResolvedValueOnce(reply(200, { user, security }));
     await expect(fetchMe()).resolves.toMatchObject({ ok: true });
     expect(fetchMock.mock.calls.map((call) => call[0])).toEqual(['http://localhost:3001/auth/refresh', 'http://localhost:3001/auth/me']);
     expect((fetchMock.mock.calls[1]![1] as RequestInit).headers).toMatchObject({ Authorization: 'Bearer jwt-new' });
 
     setSession(stale({ expiresAt: Date.now() + 5_000 }));
-    fetchMock.mockResolvedValueOnce(reply(200, { ...refreshBody, accessToken: 'jwt-newer' })).mockResolvedValueOnce(reply(200, { user }));
+    fetchMock.mockResolvedValueOnce(reply(200, { ...refreshBody, accessToken: 'jwt-newer' })).mockResolvedValueOnce(reply(200, { user, security }));
     await fetchMe();
     expect((fetchMock.mock.calls[3]![1] as RequestInit).headers).toMatchObject({ Authorization: 'Bearer jwt-newer' });
   });
@@ -104,7 +105,7 @@ describe('authedGetJson', () => {
     fetchMock
       .mockResolvedValueOnce(reply(401, unauthenticated))
       .mockResolvedValueOnce(reply(200, refreshBody))
-      .mockResolvedValueOnce(reply(200, { user }));
+      .mockResolvedValueOnce(reply(200, { user, security }));
     await expect(fetchMe()).resolves.toMatchObject({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect((fetchMock.mock.calls[2]![1] as RequestInit).headers).toMatchObject({ Authorization: 'Bearer jwt-new' });
