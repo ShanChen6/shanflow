@@ -10,3 +10,4 @@ export * from './auth/password.js';
 export * from './auth/one-time-token.js';
 export * from './auth/password-flows.js';
 export * from './auth/oauth.js';
+export * from './user/profile.js';
