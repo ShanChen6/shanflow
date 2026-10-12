@@ -8,11 +8,11 @@ schema đã có ([workspace](workspace-implementation.md), [workspace member](wo
 
 | Bước | Nội dung | Trạng thái |
 | --- | --- | --- |
-| 5.1 | Thiết kế + contracts (tài liệu này) | Đang làm |
-| 5.2 | Dịch vụ phân quyền workspace (CDB-002) | Chưa |
-| 5.3 | Tạo personal workspace nguyên tử + OWNER membership (CDB-003, ADR-011) | Chưa |
-| 5.4 | API đọc/sửa workspace, danh sách thành viên | Chưa |
-| 5.5 | Giao diện `/workspace` | Chưa |
+| 5.1 | Thiết kế + contracts (tài liệu này) | Xong |
+| 5.2 | Dịch vụ phân quyền workspace (CDB-002) | Xong |
+| 5.3 | Tạo personal workspace nguyên tử + OWNER membership (CDB-003, ADR-011) | Xong |
+| 5.4 | API đọc/sửa workspace, danh sách thành viên | Xong |
+| 5.5 | Giao diện `/workspace` | Xong |
 
 ## Phạm vi MVP (ADR-002, ADR-008)
 
@@ -76,3 +76,16 @@ Trang `/workspace` (trong khu vực đã đăng nhập): tên, vai trò của t�
 
 - **AUTH-R01** (cửa sổ ân hạn khi xoay refresh token): chưa có quyết định; Phase 5 không phụ thuộc.
 - Khi mở TEAM: cần API mời/thành viên/chuyển quyền (ma trận) và version cho metadata.
+
+## Kết quả kiểm thử
+
+- Contracts: `workspace.spec` (tên, trường thừa, không lộ email).
+- API database (`workspace-api.db-spec`, 15 test): signup tạo user + workspace nguyên tử; `ensure` idempotent với 6 lần gọi song song,
+  tự sửa membership thiếu/INACTIVE, rollback cùng giao dịch cha; `GET /workspaces` bù cho tài khoản cũ; chỉ liệt kê membership ACTIVE;
+  404 cho người lạ/INACTIVE/tài khoản bị khóa/id lạ/id sai định dạng; OWNER+ADMIN đổi tên được, MEMBER 403; không đổi được owner/type;
+  thu hồi role có hiệu lực ngay; `FOR SHARE` chặn hạ quyền song song đến hết giao dịch ghi.
+- API unit: handler đăng ký gọi `ensure` trong cùng `tx`.
+- Web: actions, `WorkspaceView` (đổi tên, ẩn form với MEMBER, lỗi tải), điều hướng.
+- Helper `deleteUsers` của test nay xóa cả workspace và membership của người dùng test (FK RESTRICT).
+
+Chưa có test riêng cho đường đăng ký Google tạo workspace (dùng cùng dịch vụ và cùng mẫu giao dịch với đăng ký email).
