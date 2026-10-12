@@ -26,11 +26,11 @@ export class TaskMutationService {
     private readonly store: TaskStore,
   ) {}
 
-  mutate<T>(
+  /** Opens the transaction for a change to a workspace's tasks: active member (share-locked), workspace writers serialised. */
+  inWorkspace<T>(
     principal: Principal,
     workspaceId: string,
-    taskId: string,
-    work: (context: MutationContext) => Promise<T>,
+    work: (context: { tx: Tx; role: WorkspaceRole }) => Promise<T>,
   ): Promise<T> {
     return this.prisma.$transaction(async (tx) => {
       const { role } = await this.access.require(
@@ -40,6 +40,18 @@ export class TaskMutationService {
         tx,
       );
       await this.store.lockWorkspace(tx, workspaceId);
+      return work({ tx, role });
+    });
+  }
+
+  /** `inWorkspace` for one existing LIVE task whose project is not archived. */
+  mutate<T>(
+    principal: Principal,
+    workspaceId: string,
+    taskId: string,
+    work: (context: MutationContext) => Promise<T>,
+  ): Promise<T> {
+    return this.inWorkspace(principal, workspaceId, async ({ tx, role }) => {
       const task = await this.store.findLive(tx, workspaceId, taskId);
       await this.store.requireTaskProjectEditable(tx, task);
       return work({ tx, role, task });

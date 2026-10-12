@@ -51,6 +51,21 @@ export class TaskStore {
     return row;
   }
 
+  /** A task of this workspace, live or deleted. Only operations that must treat both states (delete, restore) use it. */
+  async findAny(
+    tx: Tx | PrismaService,
+    workspaceId: string,
+    taskId: string,
+  ): Promise<StoredTask> {
+    if (!isUuid(taskId)) throw new TaskNotFoundError();
+    const row = await tx.task.findFirst({
+      where: { id: taskId, workspaceId },
+      select: TASK_SELECT,
+    });
+    if (!row) throw new TaskNotFoundError();
+    return row;
+  }
+
   /** A task that is in the trash. Only the authorized trash paths call this. */
   async findDeleted(
     tx: Tx | PrismaService,

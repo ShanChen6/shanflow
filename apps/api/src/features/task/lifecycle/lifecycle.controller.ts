@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   HttpCode,
   Param,
   Post,
+  Query,
   Res,
   UseFilters,
   UseGuards,
@@ -11,7 +13,9 @@ import {
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   changeTaskStatusRequestSchema,
+  deleteTaskQuerySchema,
   type ChangeTaskStatusRequest,
+  type DeleteTaskQuery,
   type TaskResponse,
 } from '@shanflow/contracts';
 import type { Response } from 'express';
@@ -59,5 +63,20 @@ export class LifecycleController {
   ): Promise<TaskResponse> {
     noStore(response);
     return this.lifecycle.changeStatus(principal, workspaceId, taskId, body);
+  }
+
+  @Delete()
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @writeLimit
+  remove(
+    @CurrentPrincipal() principal: Principal,
+    @Param('workspaceId') workspaceId: string,
+    @Param('taskId') taskId: string,
+    @Query(new ZodValidationPipe(deleteTaskQuerySchema)) query: DeleteTaskQuery,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<TaskResponse> {
+    noStore(response);
+    return this.lifecycle.remove(principal, workspaceId, taskId, query);
   }
 }

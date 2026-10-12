@@ -10,7 +10,7 @@ Ngày: 2026-10-12. Phạm vi: chỉ local development theo [IA-001](../security/
 | --- | --- | --- |
 | 7.1 | Nền tảng backend: contracts, chính sách quyền, đồ thị trạng thái, bộ cấp `position`, `TaskStore` | Xong |
 | 7.2 | CRUD API: tạo, liệt kê/lọc, đọc, sửa metadata | Xong |
-| 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Đang làm — 7.3.1a (trạng thái) xong; còn xóa/khôi phục idempotent, 7.3.2, 7.3.3, 7.3.4 |
+| 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Đang làm — 7.3.1a (trạng thái) và 7.3.1b (xóa mềm) xong; còn khôi phục (7.3.4), 7.3.2, 7.3.3 |
 | 7.4 | Sắp xếp và di chuyển: reorder, chuyển project/Inbox, rebalance | Chưa |
 | 7.5 | Giao diện quản lý Task | Chưa |
 | 7.6 | Tích hợp và sẵn sàng phát hành | Chưa |
@@ -105,7 +105,27 @@ cô lập tenant, xóa mềm/lưu trữ, tạo/sửa song song, giới hạn).
 
 **Kiểm thử:** contracts `task-status.spec` (2); database `task-status.db-spec` (28 test: lát, `completedAt`, no-op, đồ thị từng cặp, làn, 6 yêu cầu chuyển song song cùng làn, quyền, version, project lưu trữ, 401/404, body sai).
 
+## 7.3.1b — Xóa mềm idempotent (TDD)
+
+`DELETE /workspaces/:w/tasks/:id?version=N` (không body; `deleteTaskQuerySchema` strict nên không có tham số `hard`/`force`). Trả `200 { task }` là tombstone.
+
+- **Chỉ đóng dấu `deletedAt`** (giờ server) và tăng `version`/`updatedAt`. Trạng thái, `completedAt`, `dueAt`, mô tả, project, người tạo và `position` giữ nguyên (xóa ≠ hủy);
+  hàng **không bao giờ bị xóa vật lý** — API không có đường xóa cứng, test xác nhận hàng còn nguyên.
+- **Giải phóng rank:** `deletedAt IS NOT NULL` nhả slot khỏi hai partial unique index (ADR-009). Tombstone giữ rank lịch sử, nhưng làn có thể cấp lại đúng rank đó
+  (test: tạo task mới nhận lại 1024; chuyển task khác vào đúng slot của làn DONE).
+- **Idempotent (chốt cho câu hỏi mở của ADR-003):** xóa task đã xóa → `200` trả đúng tombstone cũ, **không** đổi `deletedAt`, `version`, `updatedAt`; bỏ qua kiểm tra
+  `version` (trạng thái mong muốn đã đúng) nên request thử lại an toàn; 6 yêu cầu xóa song song đều 200 và chỉ xóa đúng một lần (`version` = 2).
+- **Quyền** (`canDeleteOrRestore`): OWNER/ADMIN xóa mọi task; MEMBER chỉ task mình tạo (được giao việc không đủ) → 403 với task còn sống không thuộc mình.
+  Với task **đã xóa**, người không có quyền nhận **404** thay vì 403: thùng rác vô hình với họ, không lộ sự tồn tại.
+- **Loại khỏi mặc định:** task đã xóa biến mất khỏi danh sách, `GET`, `PATCH`, đổi trạng thái (đều 404); danh sách không có tham số nào để xem task đã xóa
+  (`?deleted`, `?includeDeleted`, `?deletedAt` → 400).
+- **Bảo vệ:** `version` cũ ở lần xóa đầu → 409 `TASK_VERSION_CONFLICT`; project đã lưu trữ chặn xóa task còn sống (409) nhưng lặp lại một lệnh xóa cũ vẫn 200 (không có gì thay đổi);
+  thu hồi membership có hiệu lực ngay; 401/404 cho chưa đăng nhập, người ngoài, workspace khác, id sai.
+- **Cấu trúc:** `TaskMutationService.inWorkspace` (quyền + khóa workspace) là phần mở đầu chung; `mutate` xây trên nó cho task sống; `TaskStore.findAny` cho các thao tác phải xử lý cả hai trạng thái.
+
+**Kiểm thử:** contracts `task-delete.spec` (2); database `task-delete.db-spec` (17).
+
 ## Câu hỏi mở
 
-- Xóa/khôi phục lặp lại (7.3): đề xuất idempotent, quyết khi làm 7.3.
+- Khôi phục (7.3.4): xử lý va chạm rank, project đã lưu trữ, người được giao không còn hợp lệ — thiết kế khi làm 7.3.4 (cùng quyền `canDeleteOrRestore`).
 - Sắp xếp danh sách đa làn: hiện theo `position, id`; thứ tự hiển thị theo làn do UI (7.5) lọc theo project + status.

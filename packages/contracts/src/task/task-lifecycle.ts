@@ -13,3 +13,13 @@ export const changeTaskStatusRequestSchema = z
   .strict();
 
 export type ChangeTaskStatusRequest = z.infer<typeof changeTaskStatusRequestSchema>;
+
+/**
+ * Soft delete is `DELETE …/tasks/:id?version=N`: a body-less request that names the version the caller saw.
+ * Strict, so there is no `hard`/`force` switch to ask for anything but a soft delete.
+ */
+export const deleteTaskQuerySchema = z
+  .object({ version: z.coerce.number().int().min(1) })
+  .strict();
+
+export type DeleteTaskQuery = z.infer<typeof deleteTaskQuerySchema>;

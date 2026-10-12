@@ -1,16 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import {
+  canDeleteOrRestore,
   canTransition,
   completedAtAfter,
   type ChangeTaskStatusRequest,
+  type DeleteTaskQuery,
   type TaskResponse,
 } from '@shanflow/contracts';
 import { Clock } from '../../../shared/clock.js';
 import type { Principal } from '../../auth/shared/principal.js';
 import { appendPosition } from '../shared/position.js';
+import { ForbiddenError } from '../../workspace/shared/workspace.errors.js';
 import {
   InvalidStatusTransitionError,
   PositionCapacityExceededError,
+  TaskNotFoundError,
 } from '../shared/task.errors.js';
 import { TASK_SELECT, toTask } from '../shared/task.mapper.js';
 import {
@@ -70,6 +74,39 @@ export class LifecycleHandlers {
             ),
             version: { increment: 1 },
           },
+          select: TASK_SELECT,
+        });
+        return { task: toTask(row) };
+      },
+    );
+  }
+
+  /**
+   * Soft delete: stamps `deletedAt` and nothing else (status, completion, rank and history stay), which releases the
+   * rank in its lane. Idempotent: an already-deleted task is returned as it is. Whoever may not delete does not get to
+   * learn that a deleted task exists, so for them it is "not found".
+   */
+  remove(
+    principal: Principal,
+    workspaceId: string,
+    taskId: string,
+    query: DeleteTaskQuery,
+  ): Promise<TaskResponse> {
+    return this.mutations.inWorkspace(
+      principal,
+      workspaceId,
+      async ({ tx, role }) => {
+        const task = await this.store.findAny(tx, workspaceId, taskId);
+        if (!canDeleteOrRestore({ role, userId: principal.userId }, task)) {
+          throw task.deletedAt ? new TaskNotFoundError() : new ForbiddenError();
+        }
+        if (task.deletedAt) return { task: toTask(task) };
+
+        await this.store.requireTaskProjectEditable(tx, task);
+        requireVersion(task, query.version);
+        const row = await tx.task.update({
+          where: { id: taskId },
+          data: { deletedAt: this.clock.now(), version: { increment: 1 } },
           select: TASK_SELECT,
         });
         return { task: toTask(row) };
