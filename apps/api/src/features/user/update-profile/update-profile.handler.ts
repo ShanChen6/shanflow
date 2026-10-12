@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { UnauthenticatedError } from '../../auth/shared/auth.errors.js';
 import type { Principal } from '../../auth/shared/principal.js';
-import { PROFILE_SELECT, toProfile } from '../shared/profile.mapper.js';
+import { PROFILE_SELECT, ProfileService } from '../shared/profile.mapper.js';
 import type {
   UpdateProfileRequest,
   UpdateProfileResponse,
@@ -10,7 +10,10 @@ import type {
 
 @Injectable()
 export class UpdateProfileHandler {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly profiles: ProfileService,
+  ) {}
 
   /**
    * Changes the caller's own display name. The target is the id in the verified token, and the account must be
@@ -29,6 +32,6 @@ export class UpdateProfileHandler {
       where: { id: principal.userId },
       select: PROFILE_SELECT,
     });
-    return { user: toProfile(user) };
+    return { user: this.profiles.toProfile(user) };
   }
 }

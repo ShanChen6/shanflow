@@ -1,4 +1,5 @@
 import { UnauthenticatedError } from '../../auth/shared/auth.errors.js';
+import { ProfileService } from '../shared/profile.mapper.js';
 import { UpdateProfileHandler } from './update-profile.handler.js';
 
 const principal = { userId: 'user-1', sessionId: 'session-1' };
@@ -8,6 +9,8 @@ const stored = {
   emailVerifiedAt: null,
   displayName: 'New Name',
   avatarUrl: null,
+  avatarStorageKey: null,
+  avatarUpdatedAt: null,
   accountStatus: 'ACTIVE',
   createdAt: new Date('2026-10-12T00:00:00.000Z'),
   updatedAt: new Date('2026-10-12T02:00:00.000Z'),
@@ -17,9 +20,12 @@ function setup(count: number) {
   const updateMany = vi.fn().mockResolvedValue({ count });
   const findUniqueOrThrow = vi.fn().mockResolvedValue(stored);
   return {
-    handler: new UpdateProfileHandler({
-      user: { updateMany, findUniqueOrThrow },
-    } as never),
+    handler: new UpdateProfileHandler(
+      {
+        user: { updateMany, findUniqueOrThrow },
+      } as never,
+      new ProfileService({ API_PUBLIC_URL: 'http://localhost:3001' } as never),
+    ),
     updateMany,
     findUniqueOrThrow,
   };

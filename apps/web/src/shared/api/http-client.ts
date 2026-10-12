@@ -13,6 +13,8 @@ interface RequestOptions<T> {
   path: string;
   schema: ZodType<T>;
   body?: unknown;
+  /** Raw bytes sent as-is with their own content type (used for image upload); excludes `body`. */
+  rawBody?: Blob;
   accessToken?: string;
   /** Lets the request (and its Set-Cookie) complete even if the page unloads mid-flight. */
   keepalive?: boolean;
@@ -23,9 +25,10 @@ interface RequestOptions<T> {
  * on the result. Cookies are always sent (the refresh cookie is scoped to /auth by the server).
  * POSTs carry the CSRF marker header required by cookie-authenticated endpoints.
  */
-export async function requestJson<T>({ method, path, schema, body, accessToken, keepalive }: RequestOptions<T>): Promise<ApiResult<T>> {
+export async function requestJson<T>({ method, path, schema, body, rawBody, accessToken, keepalive }: RequestOptions<T>): Promise<ApiResult<T>> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (rawBody) headers['Content-Type'] = rawBody.type;
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   if (method === 'POST') headers[CSRF_HEADER_NAME] = CSRF_HEADER_VALUE;
 
@@ -35,7 +38,7 @@ export async function requestJson<T>({ method, path, schema, body, accessToken, 
       method,
       credentials: 'include',
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: rawBody ?? (body === undefined ? undefined : JSON.stringify(body)),
       ...(keepalive ? { keepalive: true } : {}),
     });
   } catch {

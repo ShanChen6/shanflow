@@ -14,7 +14,7 @@ kế hoạch này; Workspace chuyển sang phase sau, các điều kiện ở đ
 | 4.2 | Cập nhật hồ sơ (backend) | **Xong** |
 | 4.3 | Giao diện hồ sơ | **Xong** |
 | 4.4 | Đổi mật khẩu | **Xong** (phần còn thiếu: email thông báo) |
-| 4.5 | Ảnh đại diện | Chưa làm — cần quyết định lưu trữ |
+| 4.5 | Ảnh đại diện | Xong |
 | 4.6 | Cài đặt người dùng | Chưa làm — cần quyết định lưu trữ |
 
 ### Câu hỏi mở cho các bước sau
@@ -114,3 +114,29 @@ Nếu Project Owner muốn hướng khác (ví dụ chuyển biểu mẫu sang `
 
 Kiểm chứng: API unit 206/206, db 219/219 (thêm 5: thông báo đúng người nhận, không chứa mật khẩu/token, mail lỗi vẫn đổi được, bị từ chối không gửi, reset gửi thông báo "was just reset"), lint, typecheck đạt.
 
+
+## 4.5 — Ảnh đại diện
+
+**Quyết định mặc định (chờ Project Owner xác nhận):** lưu tệp trên đĩa local (`AVATAR_STORAGE_DIR`, mặc định `.data/avatars`, đã
+Git-ignore) sau cổng `AvatarStorage`; đổi sang object storage khi có hạ tầng (không thuộc IA-001) chỉ cần thêm một adapter.
+
+| API | Mô tả |
+| --- | --- |
+| `PUT /users/me/avatar` | Thân là byte ảnh thô, `Content-Type: image/png\|jpeg\|webp`, tối đa 2 MiB. Trả `{ user }` |
+| `DELETE /users/me/avatar` | Xóa ảnh tải lên và cả `avatarUrl` bên ngoài (Google). Trả `{ user }` |
+| `GET /users/:id/avatar` | Công khai để thẻ `<img>` tải được; 404 giống nhau cho id lạ / không có ảnh / tài khoản bị khóa |
+
+**Bảo mật và độ bền**
+- Không tin client: kiểu khai báo chỉ là lọc đầu; `sharp` nhận diện định dạng thật, giới hạn 25 triệu điểm ảnh (chống decompression bomb),
+  rồi **mã hóa lại** thành WebP 256×256 (cắt vuông, xoay theo EXIF rồi bỏ toàn bộ metadata). SVG/GIF/polyglot bị từ chối (400).
+- Giới hạn 2 MiB được đếm trên luồng thật (không chỉ `Content-Length`) → 413.
+- Khóa tệp `<userId>/<uuid>.webp` được kiểm bằng regex và đường dẫn không thoát khỏi thư mục gốc; ghi tạm rồi `rename`.
+- Thay ảnh: ghi tệp mới → giao dịch khóa hàng (`SELECT … FOR UPDATE`) → cập nhật → xóa tệp cũ; lỗi giữa chừng không để tệp mồ côi.
+- URL có phiên bản `?v=<avatarUpdatedAt>` nên cache vĩnh viễn (`immutable`) mà ảnh mới hiện ngay; có ETag/304.
+- Phản hồi ảnh: `nosniff`, CSP `default-src 'none'; sandbox`, `Cross-Origin-Resource-Policy: same-site`.
+- Ảnh tải lên ưu tiên hơn `avatarUrl` bên ngoài; URL bên ngoài chỉ được trả nếu là https.
+- Throttle: tải lên/xóa 10 lần / 10 phút / người dùng; đọc 120 / phút / IP.
+- DB: cột `avatar_storage_key`, `avatar_updated_at` với CHECK định dạng khóa và cặp cột cùng null/không null.
+
+**Kiểm thử:** `avatar-storage`, `avatar-image`, `read-body` (unit); `avatar.db-spec` (PNG/JPEG/WebP → 256×256 WebP, bỏ EXIF, thay ảnh
+không mồ côi, xóa, 415/400/413, bomb, tài khoản bị khóa, 404, ETag/304); web: validate, upload/xóa, thông báo lỗi.

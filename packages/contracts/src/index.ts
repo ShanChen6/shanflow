@@ -13,3 +13,4 @@ export * from './auth/oauth.js';
 export * from './user/profile.js';
 export * from './user/display-name.js';
 export * from './user/update-profile.js';
+export * from './user/avatar.js';

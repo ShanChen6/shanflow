@@ -1,7 +1,7 @@
 import { getUserMeResponseSchema } from '@shanflow/contracts';
 import { UnauthenticatedError } from '../../auth/shared/auth.errors.js';
 import { GetMeHandler } from './me.handler.js';
-import { safeAvatarUrl } from '../shared/profile.mapper.js';
+import { ProfileService, safeAvatarUrl } from '../shared/profile.mapper.js';
 
 const principal = { userId: 'user-1', sessionId: 'session-1' };
 const stored = {
@@ -10,6 +10,8 @@ const stored = {
   emailVerifiedAt: null,
   displayName: 'Ann',
   avatarUrl: null,
+  avatarStorageKey: null,
+  avatarUpdatedAt: null,
   accountStatus: 'ACTIVE',
   createdAt: new Date('2026-10-12T00:00:00.000Z'),
   updatedAt: new Date('2026-10-12T01:00:00.000Z'),
@@ -18,7 +20,10 @@ const stored = {
 function setup(found: unknown) {
   const findUnique = vi.fn().mockResolvedValue(found);
   return {
-    handler: new GetMeHandler({ user: { findUnique } } as never),
+    handler: new GetMeHandler(
+      { user: { findUnique } } as never,
+      new ProfileService({ API_PUBLIC_URL: 'http://localhost:3001' } as never),
+    ),
     findUnique,
   };
 }
@@ -52,6 +57,8 @@ describe('GetMeHandler', () => {
     ).select;
     expect(Object.keys(select).sort()).toEqual([
       'accountStatus',
+      'avatarStorageKey',
+      'avatarUpdatedAt',
       'avatarUrl',
       'createdAt',
       'displayName',

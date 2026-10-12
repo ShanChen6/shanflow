@@ -94,6 +94,16 @@ export function authedPatchJson<T>(path: string, body: unknown, schema: ZodType<
   return withAccessToken((accessToken) => requestJson({ method: 'PATCH', path, body, schema, accessToken }));
 }
 
+/** Authenticated PUT of raw bytes (e.g. an image) that answers with a validated JSON body. */
+export function authedPutBlob<T>(path: string, rawBody: Blob, schema: ZodType<T>): Promise<AuthedResult<T>> {
+  return withAccessToken((accessToken) => requestJson({ method: 'PUT', path, rawBody, schema, accessToken }));
+}
+
+/** Authenticated DELETE that answers with a validated JSON body. */
+export function authedDeleteJson<T>(path: string, schema: ZodType<T>): Promise<AuthedResult<T>> {
+  return withAccessToken((accessToken) => requestJson({ method: 'DELETE', path, schema, accessToken }));
+}
+
 /** Authenticated POST that answers with a validated JSON body. */
 export function authedPostJson<T>(path: string, body: unknown, schema: ZodType<T>): Promise<AuthedResult<T>> {
   return withAccessToken((accessToken) => requestJson({ method: 'POST', path, body, schema, accessToken }));
