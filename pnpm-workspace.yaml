@@ -14,3 +14,5 @@ allowBuilds:
   '@nestjs/core': false
   sharp: false
   unrs-resolver: false
+  # Prebuilt native binaries ship in the package; no install script is needed.
+  argon2: false
