@@ -59,3 +59,27 @@ export const assignTaskRequestSchema = z
   .strict();
 
 export type AssignTaskRequest = z.infer<typeof assignTaskRequestSchema>;
+
+/**
+ * Placing a task: in its own project's lane or another's (`projectId`, `null` = Inbox, omitted = stay), right before
+ * (`beforeId`) or right after (`afterId`) a neighbour, or at the end when neither is given. Clients name neighbours;
+ * the server alone computes ranks. The lane is always the task's current status within the destination project.
+ */
+export const moveTaskRequestSchema = z
+  .object({
+    version: z.number().int().min(1),
+    projectId: z.uuid().nullable().optional(),
+    beforeId: z.uuid().optional(),
+    afterId: z.uuid().optional(),
+  })
+  .strict()
+  .refine((value) => value.beforeId === undefined || value.afterId === undefined, 'Use either beforeId or afterId, not both');
+
+export const moveTaskResponseSchema = z.object({
+  task: taskSchema,
+  /** True when the lane had run out of room and was renumbered: other tasks of the lane changed rank too, so reload it. */
+  laneRebalanced: z.boolean(),
+});
+
+export type MoveTaskRequest = z.infer<typeof moveTaskRequestSchema>;
+export type MoveTaskResponse = z.infer<typeof moveTaskResponseSchema>;

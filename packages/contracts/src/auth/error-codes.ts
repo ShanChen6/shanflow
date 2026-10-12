@@ -12,6 +12,7 @@ export const AUTH_ERROR_CODES = {
   taskVersionConflict: 'TASK_VERSION_CONFLICT',
   invalidStatusTransition: 'INVALID_STATUS_TRANSITION',
   invalidAssignee: 'INVALID_ASSIGNEE',
+  invalidPlacement: 'INVALID_PLACEMENT',
   positionCapacityExceeded: 'POSITION_CAPACITY_EXCEEDED',
   csrfRejected: 'CSRF_REJECTED',
   invalidToken: 'INVALID_TOKEN',

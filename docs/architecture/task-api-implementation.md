@@ -11,7 +11,7 @@ Ngày: 2026-10-12. Phạm vi: chỉ local development theo [IA-001](../security/
 | 7.1 | Nền tảng backend: contracts, chính sách quyền, đồ thị trạng thái, bộ cấp `position`, `TaskStore` | Xong |
 | 7.2 | CRUD API: tạo, liệt kê/lọc, đọc, sửa metadata | Xong |
 | 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Xong — 7.3.1a (trạng thái), 7.3.1b (xóa mềm), 7.3.2 (ưu tiên và hạn chót), 7.3.3 (giao việc) và 7.3.4 (khôi phục) xong — **7.3 hoàn tất** |
-| 7.4 | Sắp xếp và di chuyển: reorder, chuyển project/Inbox, rebalance | Chưa |
+| 7.4 | Sắp xếp và di chuyển: reorder, chuyển project/Inbox, rebalance | Xong |
 | 7.5 | Giao diện quản lý Task | Chưa |
 | 7.6 | Tích hợp và sẵn sàng phát hành | Chưa |
 
@@ -182,6 +182,26 @@ Không có route mới: `priority` và `dueAt` đi qua `POST` (tạo) và `PATCH
 - Bất biến còn lại: project lưu trữ chặn giao việc (409), task đã xóa / workspace khác / người ngoài / id sai → 404, 401 khi chưa đăng nhập.
 
 **Kiểm thử:** contracts `task-assign.spec` (3); database `task-assign.db-spec` (23), `task-assignment-cleanup.db-spec` (6).
+
+## 7.4 — Sắp xếp và di chuyển (TDD)
+
+`POST /workspaces/:w/tasks/:id/move` với `{ version, projectId?, beforeId?, afterId? }` (strict) → `200 { task, laneRebalanced }`.
+Một route cho cả sắp xếp lại trong làn lẫn chuyển sang project khác / Inbox (`projectId: null`); bỏ `projectId` = giữ nguyên project.
+
+- **Client chỉ nêu láng giềng, không bao giờ gửi rank:** `beforeId` / `afterId` (không được cả hai), không có gì = cuối làn. `position`, `status`, `workspaceId` gửi lên → 400.
+  Làn đích luôn là `(workspace, project đích | Inbox, status hiện tại của task)` (ADR-009): task giữ trạng thái và `completedAt`, vào làn cùng trạng thái của project đích; làn cũ được nhả rank; người được giao và mọi chi tiết khác giữ nguyên.
+- **Láng giềng không hợp lệ → 422 `INVALID_PLACEMENT`:** không ở trong làn đích (khác project, khác trạng thái, đã xóa, workspace khác, id lạ) hoặc chính task đó. Hai trường hợp project đích: đã lưu trữ → 409 `PROJECT_ARCHIVED`; khác workspace / không tồn tại → 404.
+  Task thuộc project đã lưu trữ bị đóng băng (409) như các thao tác ghi khác.
+- **Idempotent:** đặt task vào đúng chỗ nó đang ở (cùng project, đã nằm đúng giữa láng giềng đó / đã ở cuối) → 200, không đổi `version`/`position`/`updatedAt`, bỏ qua kiểm tra `version`. Thay đổi thật với `version` cũ → 409.
+- **Cấp rank:** trung điểm số nguyên giữa hai láng giềng (`positionBetween`), chèn đầu làn khi còn chỗ, nối cuối khi không có láng giềng sau. Chỉ task được di chuyển bị ghi (các task khác giữ nguyên rank và `version`).
+- **Đánh số lại làn (rebalance) khi hết chỗ:** khi hai láng giềng liền kề (hoặc đầu làn ở rank 0, hoặc cuối làn sát giới hạn int64) mà không còn số nguyên trống, làn được đánh lại 1024·n giữ nguyên thứ tự rồi mới đặt task;
+  response có `laneRebalanced: true` để client tải lại làn. Do chỉ mục unique **tức thời**, các dòng đổi rank được đưa sang rank tạm chưa ai giữ (`planRebalance`: đoạn số nguyên trống đầu tiên phía trên các rank cuối, kể cả khi đỉnh int64 đã bị chiếm)
+  rồi mới về rank cuối trong một câu `UPDATE … FROM (VALUES …)` hai bước; chỉ các dòng thực sự đổi rank mới bị tăng `version`/`updatedAt`. Tombstone, làn khác và workspace khác không bị đụng. Hết chỗ rank → 409 `POSITION_CAPACITY_EXCEEDED`.
+- **Đồng thời:** mọi bước nằm trong một giao dịch dưới khóa workspace; 6 task cùng chuyển vào một làn nhận 6 rank khác nhau; nhiều thao tác khác nhau trên cùng task với cùng `version` → tối đa một thắng, còn lại 409. Mọi thành viên ACTIVE đều di chuyển được. Throttle 120/phút/người dùng (kéo thả tạo nhiều request).
+- **Cấu trúc:** hàm thuần `insertionIndex` / `neighbourRanks` (`placement.ts`) và `planRebalance` / `positionBetween` (`position.ts`); `TaskStore.rebalanceLane` chứa SQL; `OrderingHandlers.move` chỉ gồm guard clause.
+- **Chưa làm / quyết ở 7.5:** thả task sang **cột trạng thái khác** (Kanban) hiện là hai lời gọi (`/status` rồi `/move`) vì `/status` luôn nối cuối làn đích; nếu UI cần một lời gọi, thêm `status` tùy chọn vào `/move` tái dùng `canTransition`/`completedAtAfter`.
+
+**Kiểm thử:** contracts `task-move.spec` (6); unit `position.spec` (+7 cho `planRebalance`, kể cả `[0, MAX]`), `placement.spec` (4); database `task-move.db-spec` (22).
 
 ## Câu hỏi mở
 

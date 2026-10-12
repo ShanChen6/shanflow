@@ -48,6 +48,17 @@ export class InvalidAssigneeError extends DomainError {
   }
 }
 
+/** The neighbour a task should be placed next to is not in the destination lane (it moved, was deleted, or is not a neighbour at all). */
+export class InvalidPlacementError extends DomainError {
+  constructor() {
+    super(
+      'INVALID_PLACEMENT',
+      422,
+      'The task cannot be placed there. Reload the list and try again.',
+    );
+  }
+}
+
 export class PositionCapacityExceededError extends DomainError {
   constructor() {
     super(

@@ -7,7 +7,13 @@ import {
   ProjectArchivedError,
   ProjectNotFoundError,
 } from '../../project/project.errors.js';
-import { InvalidAssigneeError, TaskNotFoundError } from './task.errors.js';
+import { Prisma } from '../../../generated/prisma/client.js';
+import { planRebalance } from './position.js';
+import {
+  InvalidAssigneeError,
+  PositionCapacityExceededError,
+  TaskNotFoundError,
+} from './task.errors.js';
 import { TASK_SELECT, type StoredTask } from './task.mapper.js';
 
 /** A lane is the ordering scope of ADR-009: workspace + project (or Inbox when null) + status. */
@@ -166,5 +172,37 @@ export class TaskStore {
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
       select: TASK_SELECT,
     });
+  }
+
+  /**
+   * Renumbers a lane to 1024·n, keeping its order, when it has run out of room between two neighbours. Rows whose rank
+   * changes are parked on free temporary ranks first, then moved to their final ranks (the unique index is immediate and
+   * would reject a direct swap); each changed row's version goes up. Returns whether anything was renumbered.
+   * Callers hold the workspace lock.
+   */
+  async rebalanceLane(tx: Tx, lane: Lane): Promise<boolean> {
+    const tasks = await this.laneTasks(tx, lane);
+    const plan = planRebalance(tasks.map((task) => task.position));
+    if (plan === null) throw new PositionCapacityExceededError();
+    if (plan.changed.length === 0) return false;
+
+    const rows = (ranks: bigint[]) =>
+      Prisma.join(
+        plan.changed.map(
+          (index, n) =>
+            Prisma.sql`(${tasks[index]!.id}::uuid, ${ranks[n]!}::bigint)`,
+        ),
+      );
+    const write = (ranks: bigint[], bump: boolean) => tx.$executeRaw`
+      UPDATE tasks AS t
+      SET position = v.position${bump ? Prisma.sql`, version = t.version + 1, updated_at = now()` : Prisma.empty}
+      FROM (VALUES ${rows(ranks)}) AS v(id, position)
+      WHERE t.id = v.id`;
+    await write(plan.temps, false);
+    await write(
+      plan.changed.map((index) => plan.finals[index]!),
+      true,
+    );
+    return true;
   }
 }

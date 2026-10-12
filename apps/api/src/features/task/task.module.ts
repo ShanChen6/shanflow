@@ -8,6 +8,8 @@ import {
   TrashController,
 } from './lifecycle/lifecycle.controller.js';
 import { LifecycleHandlers } from './lifecycle/lifecycle.handlers.js';
+import { OrderingController } from './ordering/ordering.controller.js';
+import { OrderingHandlers } from './ordering/ordering.handlers.js';
 import { TaskAssignmentCleanup } from './shared/task-assignment-cleanup.service.js';
 import { TaskMutationService } from './shared/task-mutation.service.js';
 import { TaskController } from './task.controller.js';
@@ -20,8 +22,14 @@ import { TaskStore } from './shared/task-store.service.js';
  */
 @Module({
   imports: [PrismaModule, AuthModule, WorkspaceCoreModule],
-  controllers: [TaskController, LifecycleController, TrashController],
+  controllers: [
+    TaskController,
+    LifecycleController,
+    TrashController,
+    OrderingController,
+  ],
   providers: [
+    OrderingHandlers,
     TaskAssignmentCleanup,
     { provide: Clock, useClass: SystemClock },
     TaskStore,
