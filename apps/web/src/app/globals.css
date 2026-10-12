@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Dark first. The app was written against Tailwind's light slate scale; instead of touching every component, the scales
+ * Dark first (a light theme follows below). The app was written against Tailwind's light slate scale; instead of touching every component, the scales
  * are remapped here so the existing utilities (slate-*, red-*, …) resolve to a dark theme built on the Shanflow brand:
  * deep navy surfaces (from the navy of the wordmark) and the yellow → orange → red of the mark for accents.
  */
@@ -48,17 +48,58 @@
 
 :root {
   color-scheme: dark;
+  --app-bg: #070f26;
+  --app-fg: #e8ecf8;
+  --app-placeholder: #8e9bbd;
+}
+
+/* The light theme puts the original (light) values back; the brand colours do not change. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --app-bg: #f8fafc;
+  --app-fg: #0f172a;
+  --app-placeholder: #64748b;
+
+  --color-white: #ffffff;
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+  --color-red-800: #991b1b;
+  --color-green-50: #f0fdf4;
+  --color-green-500: #22c55e;
+  --color-green-900: #14532d;
+  --color-amber-100: #fef3c7;
+  --color-amber-500: #f59e0b;
+  --color-amber-700: #b45309;
+  --color-amber-900: #78350f;
+  --color-blue-100: #dbeafe;
+  --color-blue-500: #3b82f6;
+  --color-blue-800: #1e40af;
 }
 
 body {
   margin: 0;
-  background: #070f26;
-  color: #e8ecf8;
+  background: var(--app-bg);
+  color: var(--app-fg);
   font-family: Arial, Helvetica, sans-serif;
 }
 
 ::placeholder {
-  color: #8e9bbd;
+  color: var(--app-placeholder);
 }
 
 :focus-visible {

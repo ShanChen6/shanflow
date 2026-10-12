@@ -72,6 +72,13 @@ describe('user settings (database)', () => {
     expect((await get(token).expect(200)).body.settings.theme).toBe('dark');
   });
 
+  it('gives a first, partial change the same defaults as no change at all (dark first)', async () => {
+    const { user, token } = await signedIn();
+    const res = await patch(token, { locale: 'vi' }).expect(200);
+    expect(res.body.settings).toEqual({ ...DEFAULT_SETTINGS, locale: 'vi' });
+    expect((await prisma.userSettings.findUniqueOrThrow({ where: { userId: user.id } })).theme).toBe('DARK');
+  });
+
   it('rejects invalid values and unknown fields without changing anything', async () => {
     const { user, token } = await signedIn();
     for (const body of [

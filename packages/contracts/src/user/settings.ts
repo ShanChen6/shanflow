@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const LOCALES = ['en', 'vi'] as const;
 export const THEMES = ['system', 'light', 'dark'] as const;
 
-export const DEFAULT_SETTINGS = { locale: 'en', timeZone: 'UTC', theme: 'system' } as const;
+export const DEFAULT_SETTINGS = { locale: 'en', timeZone: 'UTC', theme: 'dark' } as const;
 
 function isTimeZone(value: string): boolean {
   try {

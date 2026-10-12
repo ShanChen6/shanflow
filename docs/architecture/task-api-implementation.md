@@ -12,7 +12,7 @@ Ngày: 2026-10-12. Phạm vi: chỉ local development theo [IA-001](../security/
 | 7.2 | CRUD API: tạo, liệt kê/lọc, đọc, sửa metadata | Xong |
 | 7.3 | Vòng đời: đổi trạng thái, giao việc, xóa mềm, thùng rác, khôi phục | Xong — 7.3.1a (trạng thái), 7.3.1b (xóa mềm), 7.3.2 (ưu tiên và hạn chót), 7.3.3 (giao việc) và 7.3.4 (khôi phục) xong — **7.3 hoàn tất** |
 | 7.4 | Sắp xếp và di chuyển: reorder, chuyển project/Inbox, rebalance | Xong |
-| 7.5 | Giao diện quản lý Task | Chưa |
+| 7.5 | Giao diện quản lý Task | Xong |
 | 7.6 | Tích hợp và sẵn sàng phát hành | Chưa |
 
 ## Quy tắc đã chốt (từ ADR / ma trận) mà mọi giai đoạn tuân theo
@@ -205,8 +205,33 @@ Một route cho sắp xếp lại trong làn, chuyển sang project khác / Inbo
 
 **Kiểm thử:** contracts `task-move.spec` (7); unit `position.spec` (+7 cho `planRebalance`, kể cả `[0, MAX]`), `placement.spec` (4); database `task-move.db-spec` (33, trong đó 11 cho kéo thả sang cột trạng thái khác).
 
+## 7.5 — Giao diện quản lý Task
+
+Quy trình: kiến trúc sạch + prototype nhiều biến thể (skill `prototype`, nhánh UI) rồi gộp. Route `/tasks`.
+
+**Các lớp (phụ thuộc một chiều: trình bày → ứng dụng → miền; hạ tầng cắm vào cổng)**
+
+| Lớp | Nội dung | Kiểm thử |
+| --- | --- | --- |
+| Miền `shared/board-model.ts` | nhóm cột theo rank (so `BigInt`), vị trí thả/bước lên-xuống chỉ nêu láng giềng, quá hạn, đổi hạn chót ↔ `datetime-local`, menu người được giao từ `canChangeAssignee` (cùng ma trận với server) | 17 test |
+| Ứng dụng `application/` | cổng `TaskGateway`; `useBoard`: tạo, sửa (chỉ gửi phần đổi), `move` một lời gọi (project/trạng thái/vị trí), giao việc, xóa mềm, thùng rác, khôi phục; thành công thay bằng bản server trả về, từ chối → thông báo, **xung đột/vị trí không hợp lệ/không tìm thấy → nạp lại bảng**; lân cận bị đánh số lại hoặc task rời phạm vi → nạp lại; bỏ qua câu trả lời của phạm vi cũ | qua test màn hình |
+| Hạ tầng `infrastructure/`, `shared/task-client.ts` | adapter HTTP; phân trang theo cursor (giới hạn 50 trang); mọi mã lỗi API → một thông điệp riêng + cờ `reload` | 18 test |
+| Trình bày `presentation/` | `TasksPage`, `parts.tsx` (huy hiệu, nhãn hạn, chọn trạng thái/người giao, trình sửa, thùng rác), 3 chế độ xem | 30 test màn hình + 3 test chọn chế độ |
+
+**Ba chế độ xem trên cùng một màn hình** (kết quả của việc chọn giữa ba biến thể prototype): **Board** (bốn cột, kéo thả hoặc nút ↑/↓; hợp để thấy luồng), **List** (nhóm theo trạng thái, ô tích hoàn thành, thao tác mở rộng theo dòng; hợp cho quét nhanh/điện thoại),
+**Focus** (danh sách theo mức khẩn: quá hạn → ưu tiên → hạn chót, khung chi tiết với nút "Mark as done"). Nhóm nút "View" chuyển qua lại không gọi lại server; lựa chọn được nhớ theo thiết bị (`localStorage`, có `try/catch` vì có thể bị chặn);
+mặc định Board khi màn hình ≥1024px, List khi hẹp. Thùng rác là chế độ riêng (nút Trash / Back to tasks). Phạm vi chọn bằng ô "Project" (Inbox hoặc một project đang hoạt động).
+
+**Tuân thủ chuẩn API:** tạo luôn `TODO` ở cuối làn; sửa gửi `version` và chỉ trường đã đổi (không đổi gì → không gọi server); đổi cột/vị trí/project qua **một** `POST /move` kèm `version` (không bao giờ gửi rank hay `completedAt`);
+giao việc `PUT /assignee` với `assigneeId` rõ ràng (`null` để bỏ giao); xóa mềm `DELETE ?version=`; khôi phục `POST /restore`; thời gian luôn UTC từ API và hiển thị theo múi giờ trình duyệt.
+
+**Giao diện sáng/tối** (dark là ưu tiên): bảng màu đảo ở `globals.css` (nền navy từ màu chữ logo, nhấn cam/vàng/đỏ của biểu tượng); `data-theme` trên `<html>`. Script khởi động trong `<head>` đặt theme **trước khi vẽ** (không nhấp nháy): chưa có lựa chọn → dark; `system` theo hệ điều hành và cập nhật trực tiếp khi hệ điều hành đổi.
+Sau đăng nhập `ThemeSync` áp dụng cài đặt của tài khoản; trang Cài đặt đổi và nhớ theme ngay. Mặc định cài đặt Giao diện của người dùng mới là **`dark`** (hằng `DEFAULT_SETTINGS`, cột `user_settings.theme` qua migration `default_theme_dark`; dòng cũ giữ lựa chọn của họ), nên lần PATCH đầu tiên chỉ đổi ngôn ngữ cũng không tạo ra `SYSTEM`.
+
+**Logo:** bản SVG tái hiện biểu tượng chữ S (thanh điều hướng, favicon `app/icon.svg`) là gần đúng cho tới khi có file chính thức; màu thương hiệu đã được dùng cho nút chính, viền focus và nhãn đang chọn.
+
 ## Câu hỏi mở
 
-- Lọc/sắp xếp danh sách theo hạn chót (quá hạn, sắp đến hạn) chưa có; thêm cùng giao diện ở 7.5 nếu cần.
+- Lọc/sắp xếp danh sách theo hạn chót (quá hạn, sắp đến hạn) ở phía API chưa có; giao diện hiện sắp theo mức khẩn ở chế độ Focus phía client.
 - Thùng rác chưa có phân trang con trỏ (tối đa 100 tombstone gần nhất); thêm khi có chính sách lưu giữ/dọn dẹp (ADR-003: chưa chốt thời hạn).
 - Sắp xếp danh sách đa làn: hiện theo `position, id`; thứ tự hiển thị theo làn do UI (7.5) lọc theo project + status.
