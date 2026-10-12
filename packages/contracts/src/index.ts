@@ -11,3 +11,5 @@ export * from './auth/one-time-token.js';
 export * from './auth/password-flows.js';
 export * from './auth/oauth.js';
 export * from './user/profile.js';
+export * from './user/display-name.js';
+export * from './user/update-profile.js';

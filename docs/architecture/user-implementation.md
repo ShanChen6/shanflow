@@ -11,7 +11,7 @@ kế hoạch này; Workspace chuyển sang phase sau, các điều kiện ở đ
 | Bước | Nội dung | Trạng thái |
 | --- | --- | --- |
 | 4.1 | `GET /users/me` | **Xong** (bản ghi bên dưới) |
-| 4.2 | Cập nhật hồ sơ (backend) | Chưa làm |
+| 4.2 | Cập nhật hồ sơ (backend) | **Xong** |
 | 4.3 | Giao diện hồ sơ | Chưa làm |
 | 4.4 | Đổi mật khẩu | Chưa làm — xem câu hỏi mở |
 | 4.5 | Ảnh đại diện | Chưa làm — cần quyết định lưu trữ |
@@ -25,7 +25,7 @@ kế hoạch này; Workspace chuyển sang phase sau, các điều kiện ở đ
 - **4.5:** ảnh lưu ở đâu (hệ thống tệp local, object storage, hay chỉ URL)? Quyết định này kéo theo giới hạn kích thước/loại tệp,
   quét nội dung, phục vụ ảnh và dọn dẹp. Hiện `users.avatar_url` có sẵn và được Google đăng nhập điền bằng URL https.
 - **4.6:** cài đặt gồm những gì (ngôn ngữ, múi giờ, giao diện sáng/tối, thông báo)? Cần bảng riêng (`user_settings`) hay cột JSON?
-- **4.2:** chỉ `displayName` có thể sửa ở bước này (email cần luồng xác minh riêng, avatar ở 4.5). Có đồng ý không?
+- **4.2 (đã chốt bởi Project Owner):** chỉ `displayName` có thể sửa; email cần luồng xác minh riêng, avatar ở 4.5.
 
 ## 4.1 — `GET /users/me`
 
@@ -64,3 +64,20 @@ Test database: hồ sơ hợp lệ theo hợp đồng chung, danh sách trườn
 email đã/chưa xác minh, avatar https được giữ còn http/`javascript:`/rác bị loại, mỗi người chỉ thấy hồ sơ của mình, bỏ qua mọi
 `id` do client gửi, 401 `problem+json` kèm `WWW-Authenticate`, tài khoản khóa hoặc bị xóa bị từ chối, tài khoản chỉ có Google
 đọc được, `/auth/me` không đổi.
+
+## 4.2 — `PATCH /users/me`
+
+Chỉ đổi `displayName` (Project Owner xác nhận). Hợp đồng `updateProfileRequestSchema` là `.strict()`: gửi `email`, `avatarUrl`, `id`,
+`accountStatus`… trả **400** thay vì bị bỏ qua âm thầm, để client không tưởng đã đổi được. `displayNameSchema` dùng chung với đăng ký:
+cắt khoảng trắng, chuẩn hóa Unicode NFC, 1–80 ký tự, **cấm ký tự điều khiển và ký tự định dạng ẩn** (zero-width, right-to-left override,
+dấu phân dòng) vốn dùng để giả mạo tên; đăng ký vì vậy cũng chặt hơn trước.
+
+Backend (`features/user/update-profile/`): `JwtAuthGuard` rồi `ThrottlerGuard` (20 lần/phút **mỗi người dùng**); handler dùng
+`updateMany({ id từ token, accountStatus: ACTIVE })` nên tài khoản bị khóa không tự sửa được dù token chưa hết hạn; `id` trong URL,
+query hay header bị bỏ qua và không có route theo id. Logic ánh xạ hồ sơ được tách thành `shared/profile.mapper.ts` dùng chung với `GET`.
+CORS cho phép thêm `PATCH`, `PUT`, `DELETE` (cho các bước sau).
+
+Kiểm chứng: contracts 51/51, API unit 204/204, db 214/214 (thêm 17): đổi tên + `updatedAt` tăng + GET thấy giá trị mới, NFC, 8 kiểu đầu vào sai,
+5 trường không được phép bị từ chối và không đổi gì, chỉ sửa chính mình, 401, tài khoản khóa, 6 yêu cầu đồng thời, đăng ký từ chối tên có
+ký tự giả mạo, giới hạn 20/phút theo người dùng và không ảnh hưởng người khác.
+

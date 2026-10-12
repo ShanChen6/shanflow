@@ -1,6 +1,7 @@
 import { getUserMeResponseSchema } from '@shanflow/contracts';
 import { UnauthenticatedError } from '../../auth/shared/auth.errors.js';
-import { GetMeHandler, safeAvatarUrl } from './me.handler.js';
+import { GetMeHandler } from './me.handler.js';
+import { safeAvatarUrl } from '../shared/profile.mapper.js';
 
 const principal = { userId: 'user-1', sessionId: 'session-1' };
 const stored = {
