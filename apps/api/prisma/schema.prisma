@@ -35,8 +35,29 @@ model User {
   refreshSessions    RefreshSession[]
   oauthAccounts      OAuthAccount[]
   oneTimeTokens      OneTimeToken[]
+  settings           UserSettings?
 
   @@map("users")
+}
+
+enum ThemePreference {
+  SYSTEM
+  LIGHT
+  DARK
+
+  @@map("theme_preference")
+}
+
+/// Per-user preferences. Created lazily on the first change; a user without a row has the defaults.
+model UserSettings {
+  userId    String          @id @map("user_id") @db.Uuid
+  locale    String          @default("en") @db.Text
+  timeZone  String          @default("UTC") @map("time_zone") @db.Text
+  theme     ThemePreference @default(SYSTEM)
+  updatedAt DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
 }
 
 enum WorkspaceType {

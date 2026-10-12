@@ -15,7 +15,7 @@ kế hoạch này; Workspace chuyển sang phase sau, các điều kiện ở đ
 | 4.3 | Giao diện hồ sơ | **Xong** |
 | 4.4 | Đổi mật khẩu | **Xong** (phần còn thiếu: email thông báo) |
 | 4.5 | Ảnh đại diện | Xong |
-| 4.6 | Cài đặt người dùng | Chưa làm — cần quyết định lưu trữ |
+| 4.6 | Cài đặt người dùng | Xong |
 
 ### Câu hỏi mở cho các bước sau
 
@@ -140,3 +140,26 @@ Git-ignore) sau cổng `AvatarStorage`; đổi sang object storage khi có hạ 
 
 **Kiểm thử:** `avatar-storage`, `avatar-image`, `read-body` (unit); `avatar.db-spec` (PNG/JPEG/WebP → 256×256 WebP, bỏ EXIF, thay ảnh
 không mồ côi, xóa, 415/400/413, bomb, tài khoản bị khóa, 404, ETag/304); web: validate, upload/xóa, thông báo lỗi.
+
+## 4.6 — Cài đặt người dùng
+
+**Quyết định mặc định (chờ Project Owner xác nhận):** bảng riêng `user_settings` (cột có kiểu, không dùng JSON) gồm
+`locale` (`en`, `vi`), `timeZone` (IANA) và `theme` (`system`/`light`/`dark`). Thông báo chưa có vì chưa có kênh gửi nào ngoài email giao dịch.
+
+| API | Mô tả |
+| --- | --- |
+| `GET /users/me/settings` | Trả `{ settings }`; người chưa đổi gì không có dòng → trả mặc định (`en`, `UTC`, `system`), không tạo dòng |
+| `PATCH /users/me/settings` | Sửa một phần (≥1 trường, trường lạ → 400); lần đầu `upsert` tạo dòng; throttle 30/phút/người dùng |
+
+- `user_settings.user_id` là khóa chính và FK `ON DELETE CASCADE`; CHECK `locale IN ('en','vi')` và độ dài `time_zone`; enum DB `theme_preference`.
+- `timeZone` được kiểm bằng `Intl.DateTimeFormat` ở contracts (dùng chung API và web).
+- `userId` luôn lấy từ token; tài khoản không ACTIVE → 401.
+- Web `/settings`: ba ô chọn, lưu ngay khi đổi (mỗi lần một trường); theme hiện chỉ đặt `color-scheme` của trình duyệt —
+  giao diện tối đầy đủ là bước sau. Locale/timeZone chưa dịch giao diện hay định dạng ngày ở các trang khác.
+- Kiểm thử: contracts `settings.spec`, `settings.db-spec` (mặc định không tạo dòng, sửa từng phần, từ chối giá trị sai, cô lập giữa người dùng,
+  xác thực/tài khoản bị khóa, cascade), web (`settings.test`, `app-nav.test`).
+
+## Kết thúc Phase 4 — User
+
+Các câu hỏi mở còn lại cho Project Owner: nơi lưu ảnh đại diện (đang dùng đĩa local), tập cài đặt, và việc áp dụng locale/timeZone/theme
+cho toàn giao diện.
