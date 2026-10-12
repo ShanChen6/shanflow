@@ -6,17 +6,15 @@ const now = new Date('2026-10-12T00:00:00Z');
 
 function setup(options: { claimed?: unknown; user?: unknown } = {}) {
   const update = vi.fn().mockResolvedValue({});
-  const findUnique = vi
-    .fn()
-    .mockResolvedValue(
-      'user' in options
-        ? options.user
-        : {
-            email: 'ann@example.invalid',
-            accountStatus: 'ACTIVE',
-            emailVerifiedAt: null,
-          },
-    );
+  const findUnique = vi.fn().mockResolvedValue(
+    'user' in options
+      ? options.user
+      : {
+          email: 'ann@example.invalid',
+          accountStatus: 'ACTIVE',
+          emailVerifiedAt: null,
+        },
+  );
   const tx = { user: { findUnique, update } };
   const prisma = {
     $transaction: (callback: (client: unknown) => unknown) => callback(tx),

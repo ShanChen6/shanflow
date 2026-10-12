@@ -204,9 +204,9 @@ describe('Email verification (database)', () => {
     const results = await Promise.all(
       Array.from({ length: 6 }, () => confirm(token)),
     );
-    expect(results.map((result) => result.status).sort()).toEqual([
-      204, 400, 400, 400, 400, 400,
-    ]);
+    expect(
+      results.map((result) => result.status).sort((a, b) => a - b),
+    ).toEqual([204, 400, 400, 400, 400, 400]);
   });
 
   it('confirming does not need a session and does not set one', async () => {
