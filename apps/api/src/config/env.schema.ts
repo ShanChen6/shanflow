@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resolveDatabaseUrls } from './database-url.js';
 
 function isRuntimeDatabaseUrl(value: string): boolean {
   try {
@@ -26,11 +27,13 @@ export type RuntimeEnvironment = z.infer<typeof envSchema>;
 const requirements = {
   NODE_ENV: 'NODE_ENV must be development, test or production',
   PORT: 'PORT must be an integer from 1 to 65535',
-  DATABASE_URL: 'DATABASE_URL is required and must be a PostgreSQL URL using shanflow_app, database shanflow and schema public',
+  DATABASE_URL: 'DATABASE_URL is required (or set POSTGRES_APP_PASSWORD to derive it) and must be a PostgreSQL URL using shanflow_app, database shanflow and schema public',
 };
 
 export function validateEnvironment(input: unknown): RuntimeEnvironment {
-  const result = envSchema.safeParse(input);
+  const source = typeof input === 'object' && input !== null ? (input as Record<string, string | undefined>) : undefined;
+  // DATABASE_URL may be given explicitly or derived from POSTGRES_HOST/PORT/DB and POSTGRES_APP_PASSWORD.
+  const result = envSchema.safeParse(source ? { ...source, DATABASE_URL: resolveDatabaseUrls(source).DATABASE_URL } : input);
   if (result.success) return result.data;
   const fields = new Set(result.error.issues.map(issue => issue.path[0]));
   const messages = Object.entries(requirements)

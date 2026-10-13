@@ -29,8 +29,11 @@ services:
     build: { context: ., target: api }
     restart: "no"
     working_dir: /repo/apps/api
-    command: ["node", "/repo/docker/with-db-env.mjs", "pnpm", "db:migrate:deploy"]
+    command: ["pnpm", "db:migrate:deploy"]
     environment: &api-env
+      # Connection URLs are derived from these parts inside the container (apps/api/src/config/database-url.ts).
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB:-shanflow}
       POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-}
       POSTGRES_MIGRATOR_PASSWORD: ${POSTGRES_MIGRATOR_PASSWORD:-}

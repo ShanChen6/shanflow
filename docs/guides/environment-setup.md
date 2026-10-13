@@ -66,10 +66,10 @@ POSTGRES_PORT=5432
 POSTGRES_APP_PASSWORD=<app-password>            # >= 16 ký tự ASCII in được
 POSTGRES_MIGRATOR_PASSWORD=<migrator-password>  # >= 16 ký tự ASCII in được
 
-# --- Kết nối ứng dụng (xem mục 3: tên role, database và schema bị khóa cứng) ---
-DATABASE_URL=postgresql://shanflow_app:<app-password>@127.0.0.1:5432/shanflow?schema=public
-DIRECT_DATABASE_URL=postgresql://shanflow_migrator:<migrator-password>@127.0.0.1:5432/shanflow?schema=public
-SHADOW_DATABASE_URL=postgresql://shanflow_migrator:<migrator-password>@127.0.0.1:5432/shanflow_shadow?schema=public
+# --- Kết nối ứng dụng: KHÔNG cần viết URL ---
+# API (shanflow_app), Prisma CLI (shanflow_migrator, shadow = shanflow_shadow) và db:check tự dựng URL từ
+# POSTGRES_HOST (mặc định localhost), POSTGRES_PORT, POSTGRES_DB và hai mật khẩu role ở trên (tự URL-encode).
+# POSTGRES_HOST=localhost
 
 # --- Xác thực ---
 JWT_ACCESS_SECRET=<ít-nhất-32-ký-tự-ngẫu-nhiên>
@@ -111,7 +111,7 @@ Kiểm tra: `curl localhost:3001/health/live` và `curl localhost:3001/health/re
 
 Profile `app` của `compose.yaml` build và chạy `migrate` (một lần), `api` và `web` bằng `Dockerfile` ở thư mục gốc. Dùng chung `.env` ở mục 2.2,
 nhưng bắt buộc có `POSTGRES_PASSWORD`, `POSTGRES_APP_PASSWORD`, `POSTGRES_MIGRATOR_PASSWORD` và `JWT_ACCESS_SECRET`.
-`DATABASE_URL`/`DIRECT_DATABASE_URL` **không cần** cho Docker: `docker/with-db-env.mjs` tự dựng (host `postgres`, mật khẩu được URL-encode).
+Không cần URL kết nối cho Docker: compose đặt `POSTGRES_HOST=postgres`, `POSTGRES_PORT=5432` và các container tự dựng URL từ mật khẩu role.
 
 ```bash
 docker compose up -d --wait postgres
@@ -137,9 +137,10 @@ Cột "Bắt buộc" cho biết khi nào thiếu thì API **không khởi độn
 | --- | --- | --- | --- |
 | `NODE_ENV` | không | `development` | `development`, `test` hoặc `production`. `production` bật các luật chặt ở mục 5 |
 | `PORT` | không | `3001` | Số nguyên 1–65535 |
-| `DATABASE_URL` | **có** | — | Kết nối **chạy ứng dụng**. Phải là `postgres://`/`postgresql://`, người dùng **`shanflow_app`**, database **`shanflow`**, `schema=public`; không có tham số `user/password/host/port/database` trong query. Sai một điều kiện là dừng ngay |
-| `DIRECT_DATABASE_URL` | **có** cho Prisma CLI (migrate, status) | — | Kết nối **migration**: người dùng **`shanflow_migrator`**, database `shanflow`, `schema=public` |
-| `SHADOW_DATABASE_URL` | chỉ khi `prisma migrate dev` | — | Chỉ để **phát triển** migration: `shanflow_migrator` trên database **`shanflow_shadow`** (không bao giờ là `shanflow`). Production không cần |
+| `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_APP_PASSWORD`, `POSTGRES_MIGRATOR_PASSWORD` | **có** (thay cho 3 URL dưới) | `localhost`, `5432`, `shanflow`, — , — | **Nguồn duy nhất** của kết nối: URL được dựng từ các biến này (`apps/api/src/config/database-url.ts`), mật khẩu tự URL-encode. Đổi host/cổng/mật khẩu chỉ sửa một chỗ |
+| `DATABASE_URL` | không (ghi đè) | dựng từ các biến trên | Kết nối **chạy ứng dụng**. Phải là `postgres://`/`postgresql://`, người dùng **`shanflow_app`**, database **`shanflow`**, `schema=public`; không có tham số `user/password/host/port/database` trong query. Sai một điều kiện là dừng ngay |
+| `DIRECT_DATABASE_URL` | không (ghi đè) | dựng từ `POSTGRES_MIGRATOR_PASSWORD` | Kết nối **migration**: người dùng **`shanflow_migrator`**, database `shanflow`, `schema=public` |
+| `SHADOW_DATABASE_URL` | không (ghi đè) | dựng từ `POSTGRES_MIGRATOR_PASSWORD` | Chỉ để **phát triển** migration: `shanflow_migrator` trên database **`shanflow_shadow`** (không bao giờ là `shanflow`). Production không cần |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT` | chỉ cho Docker Compose | `shanflow`, `shanflow`, (bắt buộc điền), `5432` | Khởi tạo container PostgreSQL local. API không đọc các biến này |
 | `POSTGRES_APP_PASSWORD`, `POSTGRES_MIGRATOR_PASSWORD` | chỉ khi chạy `provision-roles.py` lần đầu | — | ≥16 ký tự ASCII in được. Chạy lại không đổi mật khẩu role đã có |
 
@@ -208,7 +209,7 @@ tài khoản bạn thêm làm test user mới đăng nhập được.
    `HttpOnly; SameSite=Strict; Path=/auth` đặt bởi API; nếu web và API ở hai tên miền hoàn toàn khác nhau, trình duyệt sẽ không gửi cookie này và người dùng
    bị đăng xuất sau mỗi 15 phút. Ở local, `localhost:3000` và `localhost:3001` cùng site nên chạy bình thường.
 4. **`GOOGLE_REDIRECT_URI` ⇔ Google Console ⇔ API.** Là địa chỉ của **API** (`…/auth/google/callback`), không phải của web. Sau khi xong, API chuyển hướng người dùng về `WEB_ORIGIN`.
-5. **`DATABASE_URL`, `DIRECT_DATABASE_URL`, `SHADOW_DATABASE_URL`** phải cùng host và cùng cổng PostgreSQL; mật khẩu phải khớp mật khẩu role đã tạo.
+5. Mật khẩu `POSTGRES_APP_PASSWORD`/`POSTGRES_MIGRATOR_PASSWORD` phải khớp mật khẩu role đã tạo. Ba URL được dựng từ cùng host/cổng nên luôn đồng bộ; chỉ khi tự đặt URL ghi đè mới phải tự giữ chúng cùng host và cổng.
 6. Cổng web là **3000** cố định trong script (`next dev/start --port 3000`). Muốn cổng khác, sửa script và `WEB_ORIGIN` cho khớp.
 
 ---
@@ -232,9 +233,13 @@ Ví dụ (placeholder, thay bằng giá trị thật; đưa vào **biến môi t
 NODE_ENV=production
 PORT=3001
 
-DATABASE_URL=postgresql://shanflow_app:<app-password>@<db-host>:5432/shanflow?schema=public
-DIRECT_DATABASE_URL=postgresql://shanflow_migrator:<migrator-password>@<db-host>:5432/shanflow?schema=public
-# SHADOW_DATABASE_URL: không cần ở production
+POSTGRES_HOST=<db-host>
+POSTGRES_PORT=5432
+POSTGRES_DB=shanflow
+POSTGRES_APP_PASSWORD=<app-password>
+POSTGRES_MIGRATOR_PASSWORD=<migrator-password>
+# Có thể đặt trực tiếp DATABASE_URL / DIRECT_DATABASE_URL thay cho các biến trên (URL tường minh được ưu tiên).
+# Shadow database: không cần ở production
 
 JWT_ACCESS_SECRET=<chuỗi-ngẫu-nhiên-riêng-cho-production>
 AUTH_COOKIE_SECURE=true

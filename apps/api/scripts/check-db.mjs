@@ -1,18 +1,20 @@
 import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 import pg from 'pg';
+import { resolveDatabaseUrls } from '../src/config/database-url.ts';
 
 config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)), quiet: true });
 
+const resolved = resolveDatabaseUrls(process.env);
 const connections = [
   ['DATABASE_URL', 'shanflow_app'],
   ['DIRECT_DATABASE_URL', 'shanflow_migrator'],
 ];
 
 for (const [variable, role] of connections) {
-  const connectionString = process.env[variable];
+  const connectionString = resolved[variable];
   if (!connectionString) {
-    console.error(`Set ${variable} in the root .env file.`);
+    console.error(`Set ${variable} (or the matching POSTGRES_*_PASSWORD) in the root .env file.`);
     process.exitCode = 1;
     break;
   }

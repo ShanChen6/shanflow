@@ -11,6 +11,7 @@ import type { PrismaService } from '../../src/database/prisma.service.js';
 import { Argon2PasswordHasher } from '../../src/shared/crypto/password-hasher.js';
 import { InMemoryMailer, Mailer } from '../../src/shared/mail/mailer.js';
 import { AppModule } from '../../src/app.module.js';
+import { resolveDatabaseUrls } from '../../src/config/database-url.js';
 
 config({
   path: fileURLToPath(new URL('../../../../.env', import.meta.url)),
@@ -26,7 +27,7 @@ const hasher = new Argon2PasswordHasher();
 export function assertLocalTestDatabase(): void {
   if (process.env.NODE_ENV === 'production')
     throw new Error('Database tests refuse NODE_ENV=production.');
-  const raw = process.env.DATABASE_URL;
+  const raw = resolveDatabaseUrls(process.env).DATABASE_URL;
   if (!raw) throw new Error('DATABASE_URL is required for database tests.');
   const url = new URL(raw);
   const host = url.hostname.replace(/^\[|\]$/g, '');

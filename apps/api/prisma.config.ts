@@ -1,13 +1,18 @@
 import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
-import { defineConfig, env } from 'prisma/config';
+import { defineConfig } from 'prisma/config';
+import { resolveDatabaseUrls } from './src/config/database-url.js';
 
 // Resolve the root .env independently of the command's working directory.
 // Environment variables provided by the shell take precedence.
 config({ path: fileURLToPath(new URL('../../.env', import.meta.url)), quiet: true });
 
-const migrationUrl = env('DIRECT_DATABASE_URL');
-const shadowUrl = process.env.SHADOW_DATABASE_URL?.trim() || undefined;
+// DIRECT_DATABASE_URL / SHADOW_DATABASE_URL may be set explicitly; otherwise they are derived from
+// POSTGRES_HOST/PORT and POSTGRES_MIGRATOR_PASSWORD.
+const { DIRECT_DATABASE_URL: migrationUrl, SHADOW_DATABASE_URL: shadowUrl } = resolveDatabaseUrls(process.env);
+if (!migrationUrl) {
+  throw new Error('Set POSTGRES_MIGRATOR_PASSWORD (or DIRECT_DATABASE_URL) in the root .env file.');
+}
 if (process.argv.includes('migrate') && process.argv.includes('dev') && !shadowUrl) {
   throw new Error('SHADOW_DATABASE_URL is required for development migrations.');
 }

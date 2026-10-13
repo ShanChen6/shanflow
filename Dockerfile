@@ -25,7 +25,7 @@ ENV NODE_ENV=development AVATAR_STORAGE_DIR=/data/avatars
 USER node
 WORKDIR /repo/apps/api
 EXPOSE 3001
-CMD ["node", "/repo/docker/with-db-env.mjs", "node", "dist/main.js"]
+CMD ["node", "dist/main.js"]
 
 FROM build AS web
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
