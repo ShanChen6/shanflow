@@ -22,6 +22,9 @@ model User {
   email              String              @unique(map: "users_email_key") @db.Text
   displayName        String              @map("display_name") @db.Text
   avatarUrl          String?             @map("avatar_url") @db.Text
+  /// Key of the uploaded avatar in AvatarStorage; takes precedence over avatarUrl (an external provider picture).
+  avatarStorageKey   String?             @map("avatar_storage_key") @db.Text
+  avatarUpdatedAt    DateTime?           @map("avatar_updated_at") @db.Timestamptz(3)
   accountStatus      AccountStatus       @default(ACTIVE) @map("account_status")
   emailVerifiedAt    DateTime?           @map("email_verified_at") @db.Timestamptz(3)
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -32,8 +35,29 @@ model User {
   refreshSessions    RefreshSession[]
   oauthAccounts      OAuthAccount[]
   oneTimeTokens      OneTimeToken[]
+  settings           UserSettings?
 
   @@map("users")
+}
+
+enum ThemePreference {
+  SYSTEM
+  LIGHT
+  DARK
+
+  @@map("theme_preference")
+}
+
+/// Per-user preferences. Created lazily on the first change; a user without a row has the defaults.
+model UserSettings {
+  userId    String          @id @map("user_id") @db.Uuid
+  locale    String          @default("en") @db.Text
+  timeZone  String          @default("UTC") @map("time_zone") @db.Text
+  theme     ThemePreference @default(DARK)
+  updatedAt DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
 }
 
 enum WorkspaceType {

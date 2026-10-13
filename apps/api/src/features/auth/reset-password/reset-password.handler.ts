@@ -4,6 +4,7 @@ import { Clock } from '../../../shared/clock.js';
 import { PasswordHasher } from '../../../shared/crypto/password-hasher.js';
 import { InvalidTokenError } from '../shared/auth.errors.js';
 import { OneTimeTokenStore } from '../shared/one-time-token.store.js';
+import { AuthMailService } from '../shared/auth-mail.service.js';
 import { RefreshSessionStore } from '../shared/refresh-session.store.js';
 import type { ResetPasswordRequest } from './reset-password.schema.js';
 
@@ -15,6 +16,7 @@ export class ResetPasswordHandler {
     private readonly sessions: RefreshSessionStore,
     private readonly hasher: PasswordHasher,
     private readonly clock: Clock,
+    private readonly mail: AuthMailService,
   ) {}
 
   /**
@@ -25,7 +27,7 @@ export class ResetPasswordHandler {
   async execute(request: ResetPasswordRequest): Promise<void> {
     // Hash first so no transaction (and its locks) is held during the CPU-bound work.
     const passwordHash = await this.hasher.hash(request.newPassword);
-    await this.prisma.$transaction(async (tx) => {
+    const email = await this.prisma.$transaction(async (tx) => {
       const claimed = await this.tokens.consume(
         tx,
         request.token,
@@ -34,7 +36,7 @@ export class ResetPasswordHandler {
       if (!claimed) throw new InvalidTokenError();
       const user = await tx.user.findUnique({
         where: { id: claimed.userId },
-        select: { accountStatus: true, emailVerifiedAt: true },
+        select: { email: true, accountStatus: true, emailVerifiedAt: true },
       });
       if (!user || user.accountStatus !== 'ACTIVE')
         throw new InvalidTokenError();
@@ -64,6 +66,9 @@ export class ResetPasswordHandler {
         },
       });
       await this.sessions.revokeAllForUser(claimed.userId, { tx });
+      return user.email;
     });
+    // After the commit, and not awaited: the reset stands even if the notice cannot be sent.
+    this.mail.sendPasswordChanged(email, 'reset');
   }
 }

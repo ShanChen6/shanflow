@@ -13,7 +13,11 @@ function setup(options: { claimed?: unknown; user?: unknown } = {}) {
     .mockResolvedValue(
       'user' in options
         ? options.user
-        : { accountStatus: 'ACTIVE', emailVerifiedAt: null },
+        : {
+            email: 'ann@example.invalid',
+            accountStatus: 'ACTIVE',
+            emailVerifiedAt: null,
+          },
     );
   const tx = {
     user: { findUnique, update: userUpdate },
@@ -32,15 +36,18 @@ function setup(options: { claimed?: unknown; user?: unknown } = {}) {
     );
   const revokeAllForUser = vi.fn().mockResolvedValue(undefined);
   const hash = vi.fn().mockResolvedValue('$argon2id$new');
+  const sendPasswordChanged = vi.fn();
   const handler = new ResetPasswordHandler(
     prisma as never,
     { consume } as never,
     { revokeAllForUser } as never,
     { hash } as never,
     { now: () => now } as never,
+    { sendPasswordChanged } as never,
   );
   return {
     handler,
+    sendPasswordChanged,
     tx,
     consume,
     upsert,
@@ -116,5 +123,20 @@ describe('ResetPasswordHandler', () => {
       );
       expect(upsert).not.toHaveBeenCalled();
     }
+  });
+
+  it('notifies the owner after a successful reset and sends nothing for a rejected one', async () => {
+    const ok = setup();
+    await ok.handler.execute(request);
+    expect(ok.sendPasswordChanged).toHaveBeenCalledWith(
+      'ann@example.invalid',
+      'reset',
+    );
+
+    const rejected = setup({ claimed: null });
+    await expect(rejected.handler.execute(request)).rejects.toBeInstanceOf(
+      InvalidTokenError,
+    );
+    expect(rejected.sendPasswordChanged).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,165 @@
+# Shanflow — Phase 4 (User) Implementation Record
+
+Ngày bắt đầu: 2026-10-12. Nhánh: `feat/user` (từ `develop`). Phạm vi: chỉ local development theo
+[IA-001](../security/local-development-authorization.md); không mở rộng quyền sang staging hoặc production.
+Phase 4 theo yêu cầu của Project Owner là **User** và được làm **từng bước một**, mỗi bước kiểm chứng xong mới sang bước sau.
+Phác thảo "Phase 4 — Workspace" trong [phase-3-closure.md](phase-3-closure.md#8-cách-tiếp-tục-phase-4--workspace) được thay thế bởi
+kế hoạch này; Workspace chuyển sang phase sau, các điều kiện ở đó (CDB-002…004) vẫn nguyên giá trị.
+
+## Kế hoạch
+
+| Bước | Nội dung | Trạng thái |
+| --- | --- | --- |
+| 4.1 | `GET /users/me` | **Xong** (bản ghi bên dưới) |
+| 4.2 | Cập nhật hồ sơ (backend) | **Xong** |
+| 4.3 | Giao diện hồ sơ | **Xong** |
+| 4.4 | Đổi mật khẩu | **Xong** (phần còn thiếu: email thông báo) |
+| 4.5 | Ảnh đại diện | Xong |
+| 4.6 | Cài đặt người dùng | Xong |
+
+### Câu hỏi mở cho các bước sau
+
+- **4.4 (đã xử lý theo mặc định, chưa được Project Owner xác nhận):** `POST /auth/password/change` (xác thực lại bằng mật khẩu hiện tại, thu hồi các thiết bị khác, kiểm tra phiên còn sống,
+  giới hạn 5/15 phút/người dùng) và biểu mẫu trên `/account` **đã có từ Phase 3**. Bước này nên là gì: (a) chuyển biểu mẫu sang trang
+  hồ sơ mới, (b) bổ sung (ví dụ gửi email thông báo khi đổi mật khẩu, AUTH-R10), hay (c) bỏ vì đã đủ?
+- **4.5:** ảnh lưu ở đâu (hệ thống tệp local, object storage, hay chỉ URL)? Quyết định này kéo theo giới hạn kích thước/loại tệp,
+  quét nội dung, phục vụ ảnh và dọn dẹp. Hiện `users.avatar_url` có sẵn và được Google đăng nhập điền bằng URL https.
+- **4.6:** cài đặt gồm những gì (ngôn ngữ, múi giờ, giao diện sáng/tối, thông báo)? Cần bảng riêng (`user_settings`) hay cột JSON?
+- **4.2 (đã chốt bởi Project Owner):** chỉ `displayName` có thể sửa; email cần luồng xác minh riêng, avatar ở 4.5.
+
+## 4.1 — `GET /users/me`
+
+### Hợp đồng (`@shanflow/contracts`, `user/profile.ts`)
+
+```json
+{ "user": { "id": "uuid", "email": "canonical", "emailVerified": true, "displayName": "string",
+            "avatarUrl": "https://… | null", "createdAt": "ISO-8601", "updatedAt": "ISO-8601" } }
+```
+
+Cố ý **không** có thông tin xác thực: phương thức đăng nhập (`hasPassword`, `linkedProviders`) vẫn thuộc `GET /auth/me`, nơi
+giao diện bảo mật đang dùng. Hai endpoint không trùng vai trò: `/auth/me` trả lời "tôi đăng nhập thế nào", `/users/me` trả lời
+"hồ sơ của tôi là gì" và sẽ mở rộng dần (cài đặt ở 4.6).
+
+### Backend (`apps/api/src/features/user/`)
+
+| File | Vai trò |
+| --- | --- |
+| `user.module.ts` | Module tính năng mới; import `AuthModule` để dùng `JwtAuthGuard` đã export |
+| `me/me.controller.ts` | `GET /users/me`, `JwtAuthGuard`, `Cache-Control: private, no-store` |
+| `me/me.handler.ts` | Đọc theo `userId` **trong token**, `select` danh sách cho phép (không bao giờ chọn credential hay trạng thái), từ chối tài khoản bị xóa/khóa (401), `safeAvatarUrl` |
+| `me/me.schema.ts` | Re-export hợp đồng dùng chung |
+
+- `id` chỉ lấy từ token đã xác minh; tham số `id`/`userId` hay header `X-User-Id` bị bỏ qua (có test).
+- Chỉ URL ảnh `https:` được trả ra; mọi giá trị khác trong DB (http, `javascript:`, rác) thành `null`, phòng thủ chiều sâu cho
+  giao diện sẽ hiển thị ảnh.
+- Không giới hạn tốc độ riêng, giống `/auth/me`: cần token hợp lệ, chỉ đọc; sẽ cân nhắc cùng storage dùng chung (AUTH-R03).
+- Guard vẫn stateless: token còn hạn sau khi thu hồi phiên vẫn đọc được hồ sơ của chính mình tới khi hết hạn (AUTH-R05). Đây là
+  thao tác chỉ đọc nên không dùng `SensitiveSessionGuard`; các bước ghi (4.2…4.6) sẽ quyết định riêng.
+- Không đổi web: giao diện hồ sơ thuộc 4.3.
+
+### Kiểm chứng
+
+contracts 33/33 (thêm 8), API unit 202/202 (thêm 5), db 197/197 (thêm 10 trong `user-me.db-spec.ts`), e2e 4/4, lint, typecheck, build đạt.
+Test database: hồ sơ hợp lệ theo hợp đồng chung, danh sách trường chính xác và không rò `argon2`/`passwordHash`/`accountStatus`/`tokenHash`,
+email đã/chưa xác minh, avatar https được giữ còn http/`javascript:`/rác bị loại, mỗi người chỉ thấy hồ sơ của mình, bỏ qua mọi
+`id` do client gửi, 401 `problem+json` kèm `WWW-Authenticate`, tài khoản khóa hoặc bị xóa bị từ chối, tài khoản chỉ có Google
+đọc được, `/auth/me` không đổi.
+
+## 4.2 — `PATCH /users/me`
+
+Chỉ đổi `displayName` (Project Owner xác nhận). Hợp đồng `updateProfileRequestSchema` là `.strict()`: gửi `email`, `avatarUrl`, `id`,
+`accountStatus`… trả **400** thay vì bị bỏ qua âm thầm, để client không tưởng đã đổi được. `displayNameSchema` dùng chung với đăng ký:
+cắt khoảng trắng, chuẩn hóa Unicode NFC, 1–80 ký tự, **cấm ký tự điều khiển và ký tự định dạng ẩn** (zero-width, right-to-left override,
+dấu phân dòng) vốn dùng để giả mạo tên; đăng ký vì vậy cũng chặt hơn trước.
+
+Backend (`features/user/update-profile/`): `JwtAuthGuard` rồi `ThrottlerGuard` (20 lần/phút **mỗi người dùng**); handler dùng
+`updateMany({ id từ token, accountStatus: ACTIVE })` nên tài khoản bị khóa không tự sửa được dù token chưa hết hạn; `id` trong URL,
+query hay header bị bỏ qua và không có route theo id. Logic ánh xạ hồ sơ được tách thành `shared/profile.mapper.ts` dùng chung với `GET`.
+CORS cho phép thêm `PATCH`, `PUT`, `DELETE` (cho các bước sau).
+
+Kiểm chứng: contracts 51/51, API unit 204/204, db 214/214 (thêm 17): đổi tên + `updatedAt` tăng + GET thấy giá trị mới, NFC, 8 kiểu đầu vào sai,
+5 trường không được phép bị từ chối và không đổi gì, chỉ sửa chính mình, 401, tài khoản khóa, 6 yêu cầu đồng thời, đăng ký từ chối tên có
+ký tự giả mạo, giới hạn 20/phút theo người dùng và không ảnh hưởng người khác.
+
+## 4.3 — Giao diện hồ sơ
+
+Cấu trúc trang cho người đã đăng nhập (đều nằm trong `app/(app)/`, bọc bởi `RequireAuth` và thanh điều hướng `AppNav`):
+
+| Trang | Nội dung |
+| --- | --- |
+| `/profile` | Thông tin cá nhân: ảnh/chữ cái đầu, tên, email + trạng thái xác minh, ngày tham gia, sửa tên (4.3), ảnh đại diện (4.5) |
+| `/account` ("Security") | Bảo mật: xác minh email, đổi mật khẩu, liên kết Google, đăng xuất (Phase 3) |
+| `/settings` | Tùy chọn (4.6) |
+
+Web (`features/user/profile/`): `profile.action.ts` (tải hồ sơ, kiểm tra tên bằng đúng `displayNameSchema` của API trước khi gửi, ánh xạ lỗi),
+`use-profile.ts`, `profile-form.tsx`, `profile-view.tsx`. Sau khi lưu, hiển thị **giá trị đã chuẩn hóa mà server trả về** (không phải chuỗi người dùng
+gõ) và cập nhật tên trong session bộ nhớ mà không động tới token. Avatar chỉ là `<img>` khi URL là https, có `referrerpolicy="no-referrer"`; không có thì
+dùng chữ cái đầu. Slice `user` dùng client xác thực qua `features/auth/shared/auth-client` (API công khai của feature auth), không import slice khác.
+`http-client` hỗ trợ thêm `PATCH`/`PUT`/`DELETE`.
+
+Kiểm chứng: web 141/141 (thêm 15), lint, typecheck, build đạt. Chạy thật bằng Chromium: đăng ký → đăng nhập → vào Profile từ thanh điều hướng → sửa tên có
+khoảng trắng thừa thành "Nguyễn Văn A" (ô nhập hiển thị giá trị đã chuẩn hóa) → tải lại vẫn giữ → ký tự ẩn bị từ chối ngay trên ô nhập.
+
+## 4.4 — Đổi mật khẩu
+
+Đổi mật khẩu đã hoàn chỉnh từ Phase 3 (endpoint, biểu mẫu trên `/account`, xác thực lại, thu hồi thiết bị khác, kiểm tra phiên còn sống, giới hạn tốc độ), nên
+bước này **không viết lại mà bổ sung phần còn thiếu** (AUTH-R10): **email thông báo** gửi cho chủ tài khoản sau khi mật khẩu đổi hoặc được đặt lại, để việc chiếm
+tài khoản không diễn ra âm thầm. Biểu mẫu giữ ở trang "Security" (`/account`); trang `/profile` dành cho thông tin cá nhân, hai trang liên kết qua thanh điều hướng.
+
+- `AuthMailService.sendPasswordChanged(to, 'change' | 'reset')`: văn bản thuần, **không chứa mật khẩu hay token**, có liên kết `/forgot-password` cho trường hợp "không phải tôi".
+- Gửi **sau khi commit và không await**: thất bại gửi mail không làm hỏng việc đổi mật khẩu và không làm lộ gì ra phản hồi. Yêu cầu bị từ chối (sai mật khẩu, trùng mật khẩu cũ,
+  token sai…) không gửi gì. Áp dụng cho cả `change` và `reset`.
+
+Nếu Project Owner muốn hướng khác (ví dụ chuyển biểu mẫu sang `/profile`), đó là thay đổi giao diện nhỏ và không ảnh hưởng backend.
+
+Kiểm chứng: API unit 206/206, db 219/219 (thêm 5: thông báo đúng người nhận, không chứa mật khẩu/token, mail lỗi vẫn đổi được, bị từ chối không gửi, reset gửi thông báo "was just reset"), lint, typecheck đạt.
+
+
+## 4.5 — Ảnh đại diện
+
+**Quyết định mặc định (chờ Project Owner xác nhận):** lưu tệp trên đĩa local (`AVATAR_STORAGE_DIR`, mặc định `.data/avatars`, đã
+Git-ignore) sau cổng `AvatarStorage`; đổi sang object storage khi có hạ tầng (không thuộc IA-001) chỉ cần thêm một adapter.
+
+| API | Mô tả |
+| --- | --- |
+| `PUT /users/me/avatar` | Thân là byte ảnh thô, `Content-Type: image/png\|jpeg\|webp`, tối đa 2 MiB. Trả `{ user }` |
+| `DELETE /users/me/avatar` | Xóa ảnh tải lên và cả `avatarUrl` bên ngoài (Google). Trả `{ user }` |
+| `GET /users/:id/avatar` | Công khai để thẻ `<img>` tải được; 404 giống nhau cho id lạ / không có ảnh / tài khoản bị khóa |
+
+**Bảo mật và độ bền**
+- Không tin client: kiểu khai báo chỉ là lọc đầu; `sharp` nhận diện định dạng thật, giới hạn 25 triệu điểm ảnh (chống decompression bomb),
+  rồi **mã hóa lại** thành WebP 256×256 (cắt vuông, xoay theo EXIF rồi bỏ toàn bộ metadata). SVG/GIF/polyglot bị từ chối (400).
+- Giới hạn 2 MiB được đếm trên luồng thật (không chỉ `Content-Length`) → 413.
+- Khóa tệp `<userId>/<uuid>.webp` được kiểm bằng regex và đường dẫn không thoát khỏi thư mục gốc; ghi tạm rồi `rename`.
+- Thay ảnh: ghi tệp mới → giao dịch khóa hàng (`SELECT … FOR UPDATE`) → cập nhật → xóa tệp cũ; lỗi giữa chừng không để tệp mồ côi.
+- URL có phiên bản `?v=<avatarUpdatedAt>` nên cache vĩnh viễn (`immutable`) mà ảnh mới hiện ngay; có ETag/304.
+- Phản hồi ảnh: `nosniff`, CSP `default-src 'none'; sandbox`, `Cross-Origin-Resource-Policy: same-site`.
+- Ảnh tải lên ưu tiên hơn `avatarUrl` bên ngoài; URL bên ngoài chỉ được trả nếu là https.
+- Throttle: tải lên/xóa 10 lần / 10 phút / người dùng; đọc 120 / phút / IP.
+- DB: cột `avatar_storage_key`, `avatar_updated_at` với CHECK định dạng khóa và cặp cột cùng null/không null.
+
+**Kiểm thử:** `avatar-storage`, `avatar-image`, `read-body` (unit); `avatar.db-spec` (PNG/JPEG/WebP → 256×256 WebP, bỏ EXIF, thay ảnh
+không mồ côi, xóa, 415/400/413, bomb, tài khoản bị khóa, 404, ETag/304); web: validate, upload/xóa, thông báo lỗi.
+
+## 4.6 — Cài đặt người dùng
+
+**Quyết định mặc định (chờ Project Owner xác nhận):** bảng riêng `user_settings` (cột có kiểu, không dùng JSON) gồm
+`locale` (`en`, `vi`), `timeZone` (IANA) và `theme` (`system`/`light`/`dark`). Thông báo chưa có vì chưa có kênh gửi nào ngoài email giao dịch.
+
+| API | Mô tả |
+| --- | --- |
+| `GET /users/me/settings` | Trả `{ settings }`; người chưa đổi gì không có dòng → trả mặc định (`en`, `UTC`, `system`), không tạo dòng |
+| `PATCH /users/me/settings` | Sửa một phần (≥1 trường, trường lạ → 400); lần đầu `upsert` tạo dòng; throttle 30/phút/người dùng |
+
+- `user_settings.user_id` là khóa chính và FK `ON DELETE CASCADE`; CHECK `locale IN ('en','vi')` và độ dài `time_zone`; enum DB `theme_preference`.
+- `timeZone` được kiểm bằng `Intl.DateTimeFormat` ở contracts (dùng chung API và web).
+- `userId` luôn lấy từ token; tài khoản không ACTIVE → 401.
+- Web `/settings`: ba ô chọn, lưu ngay khi đổi (mỗi lần một trường); theme hiện chỉ đặt `color-scheme` của trình duyệt —
+  giao diện tối đầy đủ là bước sau. Locale/timeZone chưa dịch giao diện hay định dạng ngày ở các trang khác.
+- Kiểm thử: contracts `settings.spec`, `settings.db-spec` (mặc định không tạo dòng, sửa từng phần, từ chối giá trị sai, cô lập giữa người dùng,
+  xác thực/tài khoản bị khóa, cascade), web (`settings.test`, `app-nav.test`).
+
+## Kết thúc Phase 4 — User
+
+Các câu hỏi mở còn lại cho Project Owner: nơi lưu ảnh đại diện (đang dùng đĩa local), tập cài đặt, và việc áp dụng locale/timeZone/theme
+cho toàn giao diện.

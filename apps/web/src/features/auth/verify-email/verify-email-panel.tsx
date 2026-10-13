@@ -67,7 +67,7 @@ export function VerifyEmailPanel() {
         type="button"
         onClick={() => void confirm()}
         disabled={pending}
-        className="self-start rounded-md bg-slate-900 px-4 py-2 font-medium text-white disabled:opacity-60"
+        className="self-start rounded-md bg-brand-500 px-4 py-2 font-medium text-brand-ink disabled:opacity-60"
       >
         {pending ? 'Confirming…' : 'Confirm email'}
       </button>
