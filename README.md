@@ -49,6 +49,9 @@ pnpm install
 
 ### First-time local setup
 
+> Cấu hình `.env` đầy đủ (mọi biến, giá trị mặc định, luật `production`, Google, SMTP, xử lý sự cố):
+> [docs/guides/environment-setup.md](docs/guides/environment-setup.md).
+
 Thực hiện theo thứ tự sau từ root repository:
 
 1. `pnpm install`.
@@ -675,6 +678,18 @@ pnpm --filter api test:e2e
 ```
 
 Trang: `/register`, `/login`, `/forgot-password`, `/reset-password`, `/verify-email`, `/account`.
-Chưa có CI và chưa có kiểm thử trình duyệt tự động trong repo; luồng trình duyệt đã được chạy thủ công
-(xem các bản ghi triển khai).
+Luồng trình duyệt chưa có kiểm thử tự động trong repo; đã được chạy thủ công (xem các bản ghi triển khai).
+
+### CI
+
+`.github/workflows/ci.yml` chạy trên mọi pull request vào `develop`/`main` và mọi push vào hai nhánh này:
+
+- `static`: cài đặt đóng băng lockfile, generate Prisma Client, lint, typecheck, unit test, build, `pnpm audit` (lỗi nếu có
+  mức critical; báo cáo đầy đủ chỉ để tham khảo vì SEC-02 còn mở và không bị che giấu).
+- `database`: PostgreSQL 18.6 (cùng image với `compose.yaml`), dựng roles/shadow bằng `scripts/ci/setup-database.sh`
+  (dùng chính `scripts/db/provision-*.sql`), áp dụng migration lên database trống, kiểm tra không lệch schema và migration
+  replay được trên shadow database, rồi chạy test database và e2e.
+
+`scripts/ci/setup-database.sh` chỉ dành cho database trống/dùng một lần: từ chối host không phải local, từ chối ghi đè `.env`
+ngoài CI và từ chối chạy khi roles đã tồn tại. Nên bật branch protection để yêu cầu cả hai job đạt trước khi merge.
 

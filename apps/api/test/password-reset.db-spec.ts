@@ -148,6 +148,27 @@ describe('Password reset (database)', () => {
         .expect(200);
     });
 
+    it('tells the owner by email that the password was reset', async () => {
+      const user = await createUser(prisma, userIds, { label: 'reset-notice' });
+      const token = await resetTokenFor(user.email);
+      await reset(token).expect(204);
+      const notice = mailer.last(user.email);
+      expect(notice?.subject).toBe('Your Shanflow password was changed');
+      expect(notice?.text).toMatch(/was just reset/);
+      expect(notice?.text).not.toContain(token);
+      expect(notice?.text).not.toContain(NEW_PASSWORD);
+    });
+
+    it('sends no notice for a rejected reset', async () => {
+      const user = await createUser(prisma, userIds, {
+        label: 'reset-no-notice',
+      });
+      await resetTokenFor(user.email);
+      const before = mailer.outbox.length;
+      await reset('A'.repeat(43)).expect(400);
+      expect(mailer.outbox).toHaveLength(before);
+    });
+
     it('works once, and only for reset links', async () => {
       const user = await createUser(prisma, userIds, { label: 'once' });
       const token = await resetTokenFor(user.email);

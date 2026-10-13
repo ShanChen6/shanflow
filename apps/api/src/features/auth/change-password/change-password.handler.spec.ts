@@ -28,6 +28,7 @@ function setup(
     'user' in options
       ? options.user
       : {
+          email: 'ann@example.invalid',
           accountStatus: 'ACTIVE',
           passwordCredential: { passwordHash: '$argon2id$current' },
         },
@@ -45,13 +46,23 @@ function setup(
   );
   const hash = vi.fn().mockResolvedValue('$argon2id$new');
   const revokeAllForUser = vi.fn().mockResolvedValue(undefined);
+  const sendPasswordChanged = vi.fn();
   const handler = new ChangePasswordHandler(
     prisma as never,
     { verify, hash } as never,
     { revokeAllForUser } as never,
     { now: () => now } as never,
+    { sendPasswordChanged } as never,
   );
-  return { handler, tx, update, verify, hash, revokeAllForUser };
+  return {
+    handler,
+    tx,
+    update,
+    verify,
+    hash,
+    revokeAllForUser,
+    sendPasswordChanged,
+  };
 }
 
 describe('ChangePasswordHandler', () => {
@@ -109,5 +120,20 @@ describe('ChangePasswordHandler', () => {
         },
       }).handler.execute(principal, request),
     ).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+
+  it('notifies the owner by email only after a successful change', async () => {
+    const ok = setup();
+    await ok.handler.execute(principal, request);
+    expect(ok.sendPasswordChanged).toHaveBeenCalledWith(
+      'ann@example.invalid',
+      'change',
+    );
+
+    const wrong = setup({ verify: () => false });
+    await expect(
+      wrong.handler.execute(principal, request),
+    ).rejects.toBeInstanceOf(WrongPasswordError);
+    expect(wrong.sendPasswordChanged).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from '../../database/prisma.module.js';
+import { WorkspaceCoreModule } from '../workspace/workspace-core.module.js';
 import { authConfig } from '../../config/auth.config.js';
 import { ConsoleMailer, Mailer, SmtpMailer } from '../../shared/mail/mailer.js';
 import {
@@ -55,6 +56,7 @@ function loginEmailTracker(request: Record<string, unknown>): string {
 @Module({
   imports: [
     PrismaModule,
+    WorkspaceCoreModule,
     // Validates the auth environment at startup (fail-fast).
     ConfigModule.forFeature(authConfig),
     // Generous fallback; each route sets its own stricter limit with @Throttle.

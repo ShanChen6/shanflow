@@ -42,6 +42,23 @@ export class AuthMailService {
     });
   }
 
+  /** Tells the owner their password changed, so a takeover does not go unnoticed. Carries no secret. */
+  sendPasswordChanged(to: string, reason: 'change' | 'reset'): void {
+    this.dispatch({
+      to,
+      subject: 'Your Shanflow password was changed',
+      text: [
+        reason === 'reset'
+          ? 'The password for your Shanflow account was just reset, and you were signed out on every device.'
+          : 'The password for your Shanflow account was just changed, and your other devices were signed out.',
+        '',
+        'If this was you, no action is needed.',
+        '',
+        `If it was not you, reset your password now: ${this.config.WEB_ORIGIN}/forgot-password`,
+      ].join('\n'),
+    });
+  }
+
   /**
    * Not awaited: callers answer immediately, so response time never reveals whether an address has an
    * account. Failures are logged without the recipient or the link (which carries a live token).

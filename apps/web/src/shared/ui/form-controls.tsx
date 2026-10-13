@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 const inputClass =
-  'w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-slate-900 focus:outline-none aria-[invalid=true]:border-red-600';
+  'w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-brand-500 focus:outline-none aria-[invalid=true]:border-red-600';
 
 interface TextFieldProps {
   id: string;
@@ -54,7 +54,7 @@ export function SubmitButton({ pending, idle, busy }: { pending: boolean; idle: 
     <button
       type="submit"
       disabled={pending}
-      className="rounded-md bg-slate-900 px-4 py-2 font-medium text-white disabled:opacity-60"
+      className="rounded-md bg-brand-500 px-4 py-2 font-medium text-brand-ink disabled:opacity-60"
     >
       {pending ? busy : idle}
     </button>
