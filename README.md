@@ -88,6 +88,9 @@ docker compose up -d postgres
 pnpm --filter api db:generate
 ```
 
+Chạy toàn bộ dự án bằng Docker (api + web + migrate): xem mục 2.4 của
+[docs/guides/environment-setup.md](docs/guides/environment-setup.md) (`docker compose --profile app up -d --build`).
+
 ```bash
 pnpm --filter api dev
 ```

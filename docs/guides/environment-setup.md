@@ -107,6 +107,24 @@ Kiểm tra: `curl localhost:3001/health/live` và `curl localhost:3001/health/re
 `pnpm --filter api db:check` thử đăng nhập bằng hai role; mở http://localhost:3000, đăng ký tài khoản, rồi lấy **link xác minh email trong log của API**
 (vì `MAIL_TRANSPORT=console`).
 
+### 2.4. Chạy toàn bộ dự án bằng Docker (tùy chọn)
+
+Profile `app` của `compose.yaml` build và chạy `migrate` (một lần), `api` và `web` bằng `Dockerfile` ở thư mục gốc. Dùng chung `.env` ở mục 2.2,
+nhưng bắt buộc có `POSTGRES_PASSWORD`, `POSTGRES_APP_PASSWORD`, `POSTGRES_MIGRATOR_PASSWORD` và `JWT_ACCESS_SECRET`.
+`DATABASE_URL`/`DIRECT_DATABASE_URL` **không cần** cho Docker: `docker/with-db-env.mjs` tự dựng (host `postgres`, mật khẩu được URL-encode).
+
+```bash
+docker compose up -d --wait postgres
+python3 scripts/db/provision-roles.py         # bắt buộc trước khi chạy migrate
+docker compose --profile app up -d --build    # migrate -> api (:3001) -> web (:3000)
+docker compose --profile app logs -f api      # link xác minh email nằm trong log này
+docker compose --profile app down             # dừng; thêm -v để xóa cả dữ liệu
+```
+
+Lưu ý: `NEXT_PUBLIC_API_URL` được nhúng vào bundle lúc **build**, nên đổi nó phải `--build` lại; nó là địa chỉ API mà *trình duyệt* truy cập
+(`http://localhost:3001`), không phải tên host nội bộ Docker. Ảnh đại diện nằm trong volume `avatar_data`. Cổng đổi được qua `API_PORT`, `WEB_PORT`.
+Chỉ dành cho local development (`NODE_ENV=development`); cấu hình này chưa được duyệt cho staging/production.
+
 ---
 
 ## 3. Bảng biến môi trường
