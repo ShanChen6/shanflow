@@ -49,6 +49,9 @@ pnpm install
 
 ### First-time local setup
 
+> Cấu hình `.env` đầy đủ (mọi biến, giá trị mặc định, luật `production`, Google, SMTP, xử lý sự cố):
+> [docs/guides/environment-setup.md](docs/guides/environment-setup.md).
+
 Thực hiện theo thứ tự sau từ root repository:
 
 1. `pnpm install`.
