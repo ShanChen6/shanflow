@@ -9,7 +9,9 @@ WORKDIR /repo
 COPY . .
 # The root "prepare" script builds @shanflow/contracts after install.
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter api db:generate && pnpm --filter api build
+RUN DIRECT_DATABASE_URL='postgresql://shanflow_migrator:placeholder@127.0.0.1:5433/shanflow?schema=public' \
+    pnpm --filter api db:generate \
+ && pnpm --filter api build
 
 # NEXT_PUBLIC_API_URL is inlined into the browser bundle at build time and must be
 # the API origin as the *browser* reaches it (not a Docker-internal host name).
